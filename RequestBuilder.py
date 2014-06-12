@@ -150,8 +150,8 @@ class RequestBuilder(object):
                 for station in network.stations:
                     # Start Build the parameters to pass on the Event Client
                     kwargsevent = {
-                               "starttime": max(station.start_date, t0),
-                               "endtime": min(station.end_date, t1)
+                               "starttime": max([station.start_date, t0]),
+                               "endtime": min([station.end_date, t1])
                                }
 
                     # Add the event area restrictions
