@@ -27,7 +27,7 @@ class Range(object):
 
 class AreaRange(object):
     def __init__(self, xmin, xmax, ymin, ymax):
-        self.x = Range(xmin, ymax)
+        self.x = Range(xmin, xmax)
         self.y = Range(ymin, ymax)
 
     def xmin(self):
@@ -119,13 +119,13 @@ class RequestBuilder(object):
                     eventRestrictionArea = None,
                     magnitudeRange = None,
                     depthRange = None,
-                    azimutalRange = None
-                    ):
+                    distanceRange = None):
 
         # Start Build the parameters to pass on to the Client
-        kwargs = {
+        kwargsstation = {
                   "starttime": t0,
-                  "endtime": t1
+                  "endtime": t1,
+                  "level": "station"
                   }
 
         # Check if network/station code is a string -> list
@@ -134,20 +134,55 @@ class RequestBuilder(object):
 
         # Add rectangular coordinate restrictions
         if stationRestrictionArea:
-            kwargs["minlatitude"] = stationRestrictionArea.ymin()
-            kwargs["maxlatitude"] = stationRestrictionArea.ymax()
-            kwargs["minlongitude"] = stationRestrictionArea.xmin()
-            kwargs["maxlongitude"] = stationRestrictionArea.xmax()
+            kwargsstation["minlatitude"] = stationRestrictionArea.ymin()
+            kwargsstation["maxlatitude"] = stationRestrictionArea.ymax()
+            kwargsstation["minlongitude"] = stationRestrictionArea.xmin()
+            kwargsstation["maxlongitude"] = stationRestrictionArea.xmax()
 
         ## Start the Loop
         for code in networkStationCodes:
             (net, sta) = code.split(".")
-            kwargs['net'] = net
-            kwargs['sta'] = sta
-            inventory = self.client.get_stations(**kwargs)
+            kwargsstation['net'] = net
+            kwargsstation['sta'] = sta
+            inventory = self.client.get_stations(**kwargsstation)
+
             for network in inventory.networks:
                 for station in network.stations:
-                    print network.code, station.code, station.latitude, station.longitude
+                    # Start Build the parameters to pass on the Event Client
+                    kwargsevent = {
+                               "starttime": max(station.start_date, t0),
+                               "endtime": min(station.end_date, t1)
+                               }
+
+                    # Add the event area restrictions
+                    if eventRestrictionArea:
+                        kwargsevent["minlatitude"] = eventRestrictionArea.ymin()
+                        kwargsevent["maxlatitude"] = eventRestrictionArea.ymax()
+                        kwargsevent["minlongitude"] = eventRestrictionArea.xmin()
+                        kwargsevent["maxlongitude"] = eventRestrictionArea.xmax()
+                    elif distanceRange:
+                        kwargsevent["latitude"]  = station.latitude
+                        kwargsevent["longitude"] = station.longitude
+                        kwargsevent["minradius"] = distanceRange.min()
+                        kwargsevent["maxradius"] = distanceRange.max()
+
+                    # Event Depth Filter
+                    if depthRange:
+                        if depthRange.min() is not None:
+                            kwargsevent["mindepth"] = depthRange.min()
+                        if depthRange.max() is not None:
+                            kwargsevent["maxdepth"] = depthRange.max()
+
+                    # Magnitude Filter
+                    if magnitudeRange:
+                        if magnitudeRange.min() is not None:
+                            kwargsevent["minmagnitude"] = magnitudeRange.min()
+                        if magnitudeRange.max() is not None:
+                            kwargsevent["maxmagnitude"] = magnitudeRange.max()
+
+                    events = self.client.get_events(**kwargsevent)
+
+                    print "Netowrk: ", network.code, " Station: ", station.code, " Found %d Events" % len(events)
 
     def eventBased(self, t0, t1, targetSamplingRate, allowedGainCodes,
                    eventRestrictionArea,
@@ -156,7 +191,7 @@ class RequestBuilder(object):
 
                    networkStationCodes = None,
                    stationRestrictionArea = None,
-                   azimutalRange = None
+                   distanceRange = None
                    ):
         pass
 
@@ -167,10 +202,16 @@ if __name__ == "__main__":
     rb = RequestBuilder("IRIS")
 
     # Call the stationBased
-    rb.stationBased(UTCDateTime("2011-01-01"),
-                    UTCDateTime("2011-02-01"),
-                    20.0,
-                    ["H", "L"],
-                    ["TA.A*", "TA.Z*"],
-                    AreaRange(-100,-90,15,35)
+    rb.stationBased(t0 = UTCDateTime("2011-01-01"),
+                    t1 = UTCDateTime("2011-02-01"),
+                    targetSamplingRate = 20.0,
+                    allowedGainCodes = ["H", "L"],
+
+                    networkStationCodes = ["TA.A*", "TA.Z*"],
+                    stationRestrictionArea = AreaRange(-150.0, -90.0, 15.0, 35.0),
+
+                    eventRestrictionArea = AreaRange(-180.0, 0.0, 0.0, 90.0),
+                    magnitudeRange = Range(6.0, 7.0),
+                    depthRange = Range(0.0, 400.0),
+                    distanceRange = None
                     )
