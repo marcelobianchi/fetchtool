@@ -1,6 +1,9 @@
+import sys
 from obspy.fdsn import Client as fClient
 from obspy.core import AttribDict
 from obspy.core.utcdatetime import UTCDateTime
+from obspy.core import util
+from obspy import taup
 
 class Range(object):
     def __init__(self, minvalue, maxvalue):
@@ -54,15 +57,15 @@ class RequestBuilder(object):
         else:
             raise BadParameter("Invalid server object, expected String address of fdsnClient Class")
 
-    def __find_arrivalTime(self, delta, depth, phase = ["P", "Pn", "Pdiff", "PKP", "PKiKP", "PKPab", "PKPbc", "PKPdf", "PKPdiff"]):
+    '''
+    Generic Methods that can be used in FDSN or ARCLINK modes
+    '''
+
+    def __find_arrivalTime(self, t0, delta, depth, phase = ["P", "Pn", "Pdiff", "PKP", "PKiKP", "PKPab", "PKPbc", "PKPdf", "PKPdiff"]):
         '''
             delta is in degrees
             depth is in meters
         '''
-#        origin = event.preferred_origin()
-#        if origin is None:
-#            origin = event.origins[0]
-#        delta = util.locations2degrees(station.latitude, station.longitude, origin.latitude, origin.longitude)
         times = taup.getTravelTimes(delta, depth / 1000.0)
 
         seltimes = filter(lambda x: x['phase_name'] in phase, times)
@@ -70,9 +73,9 @@ class RequestBuilder(object):
             return (None, None)
 
         time = seltimes[0]['time']
-        return (origin.time + time, times[0]['dT/dD'])
+        return (t0 + time, times[0]['dT/dD'])
 
-    def __build_event_dictionary(self, t0, eventLatitude, eventLongitude, eventDepth):
+    def __build_event_dictionary(self, t0, originLatitude, originLongitude, originDepth):
         '''
             t0 is a UTCDateTime
             eventLatitude is degrees
@@ -112,7 +115,82 @@ class RequestBuilder(object):
                     }
         return AttribDict(pickinfo)
 
-    def stationBased(self, t0, t1, targetSamplingRate, allowedGainCodes,
+    def __organize_by_station(self, lines):
+        request = {}
+
+        for line in lines:
+            key = "%s.%s" % (line[2],line[3])
+            try:
+                list = request[key]
+            except KeyError:
+                request[key] = []
+                list = request[key]
+            list.append(line)
+
+        return request
+
+    def __organize_by_event(self, lines):
+        raise NotImplemented()
+
+    '''
+    FDSN specific Methods
+    '''
+
+    def _chooseFDSN(self, item, channel, targetsps, instcode):
+
+        # Build a newitem for the current channel
+        newitem = (channel.location_code, channel.code, channel.sample_rate, channel.azimuth, channel.dip, abs(channel.sample_rate - targetsps))
+
+        # Check that the instrument code is allowed to select
+        if channel.code[1] not in instcode: return item
+
+        # If we did not select yet return the current
+        if item[0] == None: return newitem
+
+        # Decided based on SPS first
+        if newitem[5] == item[5]:
+            # And based on the Channel Instrument Code
+            if instcode.index(newitem[1][1]) < instcode.index(item[1][1]):
+                return newitem
+        elif newitem[5] < item[5] and newitem[5] > targetsps:
+            return newitem
+
+        return item
+
+    def _getFDSNChannelList(self, station, t0, targetsps, instcode):
+        clist = [ ]
+
+        ## Choose will build something like: (loca, chan, sps , az  , dip , dsps)
+        z = (None, None, None, None, None, None)
+        n = (None, None, None, None, None, None)
+        e = (None, None, None, None, None, None)
+
+        for channel in station.channels:
+            if t0 < channel.start_date or (channel.end_date is not None and t0 > channel.end_date):
+                continue
+
+            if channel.code[-1] == "Z":
+                z = self._chooseFDSN(z, channel, targetsps, instcode)
+            elif channel.code[-1] == "N" or channel.code[-1] == "1":
+                n = self._chooseFDSN(n, channel, targetsps, instcode)
+            elif channel.code[-1] == "E" or channel.code[-1] == "2":
+                e = self._chooseFDSN(e, channel, targetsps, instcode)
+#             else:
+#                 print >>sys.stderr, "Unknow channel %s.%s" % (channel.location_code, channel.code)
+
+        # Return only (location, channel, azimuth, dip)
+        z = (z[0], z[1], z[3], z[4])
+        n = (n[0], n[1], n[3], n[4])
+        e = (e[0], e[1], e[3], e[4])
+
+        return (z,n,e)
+
+
+    '''
+    Request Builder Methods
+    '''
+
+    def stationBased(self, t0, t1, targetSamplingRate, allowedGainCodes, timeRange,
                     networkStationCodes,
                     stationRestrictionArea,
 
@@ -121,11 +199,14 @@ class RequestBuilder(object):
                     depthRange = None,
                     distanceRange = None):
 
+        # List of request lines
+        lines = []
+
         # Start Build the parameters to pass on to the Client
         kwargsstation = {
                   "starttime": t0,
                   "endtime": t1,
-                  "level": "station"
+                  "level": "channel"
                   }
 
         # Check if network/station code is a string -> list
@@ -140,13 +221,16 @@ class RequestBuilder(object):
             kwargsstation["maxlongitude"] = stationRestrictionArea.xmax()
 
         ## Start the Loop
+        # On the given station patterns
         for code in networkStationCodes:
             (net, sta) = code.split(".")
             kwargsstation['net'] = net
             kwargsstation['sta'] = sta
             inventory = self.client.get_stations(**kwargsstation)
 
+            # On networks found
             for network in inventory.networks:
+                # On Stations found
                 for station in network.stations:
                     # Start Build the parameters to pass on the Event Client
                     kwargsevent = {
@@ -182,7 +266,37 @@ class RequestBuilder(object):
 
                     events = self.client.get_events(**kwargsevent)
 
-                    print "Netowrk: ", network.code, " Station: ", station.code, " Found %d Events" % len(events)
+                    i=0
+                    # Event loop
+                    if len(events) > 0:
+                        for event in events:
+                            i += 1
+                            origin = event.preferred_origin()
+                            delta = util.locations2degrees(station.latitude,
+                                                           station.longitude,
+                                                           origin.latitude,
+                                                           origin.longitude)
+                            (ta, slowness) = self.__find_arrivalTime(origin.time, delta, origin.depth)
+                            (z,n,e) = self._getFDSNChannelList(station, ta, targetSamplingRate, allowedGainCodes)
+
+                            EI = self.__build_event_dictionary(origin.time, origin.latitude, origin.longitude, origin.depth)
+                            SI = self.__build_station_dictionary(network.code, station.code, station.latitude, station.longitude, station.elevation)
+                            PI = self.__build_pick_dictionary("P", ta, slowness)
+
+                            lines.append((ta + timeRange.min(),
+                                          ta + timeRange.max(),
+                                          network.code,
+                                          station.code,
+                                          [z,n,e],
+                                          SI,
+                                          EI,
+                                          PI)
+                                         )
+                    else:
+                        print >>sys.stderr,"No Events Found"
+
+        request = self.__organize_by_station(lines)
+        print >>sys.stderr,request
 
     def eventBased(self, t0, t1, targetSamplingRate, allowedGainCodes,
                    eventRestrictionArea,
@@ -206,8 +320,9 @@ if __name__ == "__main__":
                     t1 = UTCDateTime("2011-02-01"),
                     targetSamplingRate = 20.0,
                     allowedGainCodes = ["H", "L"],
+                    timeRange = Range(-20.0, 50.0),
 
-                    networkStationCodes = ["TA.A*", "TA.Z*"],
+                    networkStationCodes = [ "TA.A*" ],
                     stationRestrictionArea = AreaRange(-150.0, -90.0, 15.0, 35.0),
 
                     eventRestrictionArea = AreaRange(-180.0, 0.0, 0.0, 90.0),
