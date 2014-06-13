@@ -73,7 +73,8 @@ class RequestBuilder(object):
             return (None, None)
 
         time = seltimes[0]['time']
-        return (t0 + time, times[0]['dT/dD'])
+        slowness = seltimes[0]['dT/dD']
+        return (t0 + time, slowness)
 
     def __build_event_dictionary(self, t0, originLatitude, originLongitude, originDepth):
         '''
@@ -272,6 +273,9 @@ class RequestBuilder(object):
                         for event in events:
                             i += 1
                             origin = event.preferred_origin()
+                            if origin is None:
+                                print >>sys.stderr,"Bad origin."
+                                continue
                             delta = util.locations2degrees(station.latitude,
                                                            station.longitude,
                                                            origin.latitude,
@@ -296,9 +300,16 @@ class RequestBuilder(object):
                         print >>sys.stderr,"No Events Found"
 
         request = self.__organize_by_station(lines)
-        print >>sys.stderr,request
 
-    def eventBased(self, t0, t1, targetSamplingRate, allowedGainCodes,
+        for key in request:
+            print key
+            for line in request[key]:
+                print " %s - %s\n %s %s\n %s\n %s\n %s\n %s" % line
+                print ""
+            print ""
+
+
+    def eventBased(self, t0, t1, targetSamplingRate, allowedGainCodes, timeRange,
                    eventRestrictionArea,
                    magnitudeRange,
                    depthRange,
@@ -326,7 +337,7 @@ if __name__ == "__main__":
                     stationRestrictionArea = AreaRange(-150.0, -90.0, 15.0, 35.0),
 
                     eventRestrictionArea = AreaRange(-180.0, 0.0, 0.0, 90.0),
-                    magnitudeRange = Range(6.0, 7.0),
+                    magnitudeRange = Range(5.5, 7.0),
                     depthRange = Range(0.0, 400.0),
                     distanceRange = None
                     )
