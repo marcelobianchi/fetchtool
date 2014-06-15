@@ -318,6 +318,50 @@ class RequestBuilder(object):
                    stationRestrictionArea = None,
                    distanceRange = None
                    ):
+        lines = []
+        
+        print "AQUI1"
+        
+        kwargsevent = {
+                       "starttime": t0,
+                       "endtime": t1,
+                       }
+        
+        if eventRestrictionArea:
+            kwargsevent["minlatitude"] = eventRestrictionArea.ymin()
+            kwargsevent["maxlatitude"] = eventRestrictionArea.ymax()
+            kwargsevent["minlongitude"] = eventRestrictionArea.xmin()
+            kwargsevent["maxlongitude"] = eventRestrictionArea.xmax()
+            
+        if magnitudeRange:
+            kwargsevent["minmagnitude"] = magnitudeRange.min()
+            kwargsevent["maxmagnitude"] = magnitudeRange.max()
+            
+        if depthRange:
+                        if depthRange.min() is not None:
+                            kwargsevent["mindepth"] = depthRange.min()
+                        if depthRange.max() is not None:
+                            kwargsevent["maxdepth"] = depthRange.max()
+        
+        events = self.client.get_events(**kwargsevent)
+        print events
+        for event in events:
+            
+            kwargsstation = {}
+            
+            if stationRestrictionArea:
+                        kwargsstation["minlatitude"] = stationRestrictionArea.ymin()
+                        kwargsstation["maxlatitude"] = stationRestrictionArea.ymax()
+                        kwargsstation["minlongitude"] = stationRestrictionArea.xmin()
+                        kwargsstation["maxlongitude"] = stationRestrictionArea.xmax()
+                        
+            elif distanceRange:
+                        kwargsstation["latitude"]  = event.latitude
+                        kwargsstation["longitude"] = event.longitude
+                        kwargsstation["minradius"] = distanceRange.min()
+                        kwargsstation["maxradius"] = distanceRange.max()
+            
+        print "AQUI2"
         pass
 
 
@@ -327,7 +371,7 @@ if __name__ == "__main__":
     rb = RequestBuilder("IRIS")
 
     # Call the stationBased
-    rb.stationBased(t0 = UTCDateTime("2011-01-01"),
+    rb.eventBased(t0 = UTCDateTime("2011-01-01"),
                     t1 = UTCDateTime("2011-02-01"),
                     targetSamplingRate = 20.0,
                     allowedGainCodes = ["H", "L"],
@@ -336,8 +380,8 @@ if __name__ == "__main__":
                     networkStationCodes = [ "TA.A*" ],
                     stationRestrictionArea = AreaRange(-150.0, -90.0, 15.0, 35.0),
 
-                    eventRestrictionArea = AreaRange(-180.0, 0.0, 0.0, 90.0),
-                    magnitudeRange = Range(5.5, 7.0),
+                    eventRestrictionArea = AreaRange(-180.0, -170.0, 0.0, 90.0),
+                    magnitudeRange = Range(4.5, 7.0),
                     depthRange = Range(0.0, 400.0),
                     distanceRange = None
                     )
