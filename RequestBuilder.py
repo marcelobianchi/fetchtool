@@ -131,7 +131,19 @@ class RequestBuilder(object):
         return request
 
     def __organize_by_event(self, lines):
-        raise NotImplemented()
+        request= {}
+
+        for line in lines:
+            key = "%s" % (line[4])
+            try:
+                list = request[key]
+            except KeyError:
+                request[key] = []
+                list = request[key]
+            list.append(line)
+
+        return request
+
 
     '''
     FDSN specific Methods
@@ -286,11 +298,13 @@ class RequestBuilder(object):
                             EI = self.__build_event_dictionary(origin.time, origin.latitude, origin.longitude, origin.depth)
                             SI = self.__build_station_dictionary(network.code, station.code, station.latitude, station.longitude, station.elevation)
                             PI = self.__build_pick_dictionary("P", ta, slowness)
-
+                            
+                            a = EI[0]
                             lines.append((ta + timeRange.min(),
                                           ta + timeRange.max(),
                                           network.code,
                                           station.code,
+                                          a,
                                           [z,n,e],
                                           SI,
                                           EI,
@@ -303,7 +317,7 @@ class RequestBuilder(object):
 
         for key in request:
             print key
-            for line in request[key]:
+            for line in lines:
                 print " %s - %s\n %s %s\n %s\n %s\n %s\n %s" % line
                 print ""
             print ""
@@ -320,7 +334,6 @@ class RequestBuilder(object):
                    ):
         lines = []
         
-        print "AQUI1"
         
         kwargsevent = {
                        "starttime": t0,
@@ -332,51 +345,55 @@ class RequestBuilder(object):
             kwargsevent["maxlatitude"] = eventRestrictionArea.ymax()
             kwargsevent["minlongitude"] = eventRestrictionArea.xmin()
             kwargsevent["maxlongitude"] = eventRestrictionArea.xmax()
-            
+
         if magnitudeRange:
             kwargsevent["minmagnitude"] = magnitudeRange.min()
             kwargsevent["maxmagnitude"] = magnitudeRange.max()
-            
+
         if depthRange:
-                            kwargsevent["mindepth"] = depthRange.min()
-                            kwargsevent["maxdepth"] = depthRange.max()
-        
+            kwargsevent["mindepth"] = depthRange.min()
+            kwargsevent["maxdepth"] = depthRange.max()
+
         events = self.client.get_events(**kwargsevent)
-        
-        kwargsstation = {"level": "channel"}
-        
-        if stationRestrictionArea:
-                        kwargsstation["minlatitude"] = stationRestrictionArea.ymin()
-                        kwargsstation["maxlatitude"] = stationRestrictionArea.ymax()
-                        kwargsstation["minlongitude"] = stationRestrictionArea.xmin()
-                        kwargsstation["maxlongitude"] = stationRestrictionArea.xmax()
-        
+
         for event in events:
-            
             origin = event.preferred_origin()
+
             if origin is None:
                 print >>sys.stderr,"Bad origin."
                 continue
             
+            kwargsstation = {
+                   "starttime": (origin.time - 86400),
+                   "endtime": (origin.time +86400),
+                   "level": "channel"
+                   }
+            
+            if stationRestrictionArea:
+                kwargsstation["minlatitude"] = stationRestrictionArea.ymin()
+                kwargsstation["maxlatitude"] = stationRestrictionArea.ymax()
+                kwargsstation["minlongitude"] = stationRestrictionArea.xmin()
+                kwargsstation["maxlongitude"] = stationRestrictionArea.xmax()
+
             if distanceRange:
-                            kwargsstation["latitude"]  = event.latitude
-                            kwargsstation["longitude"] = event.longitude
-                            kwargsstation["minradius"] = distanceRange.min()
-                            kwargsstation["maxradius"] = distanceRange.max()
+                kwargsstation["latitude"]  = origin.latitude
+                kwargsstation["longitude"] = origin.longitude
+                kwargsstation["minradius"] = distanceRange.min()
+                kwargsstation["maxradius"] = distanceRange.max()
+
+
             if networkStationCodes:
-                    for code in networkStationCodes:
-#                         kwargsevent = {
-#                                "starttime": (T.OCORRENCIA -1dia),
-#                                "endtime": (T.OCORRENCIA + 1dia)
-#                                }
-                        (net, sta) = code.split(".")
-                        kwargsstation['net'] = net
-                        kwargsstation['sta'] = sta
-                        stations = self.client.get_stations(**kwargsstation)
-                        i=0
-                        # Event loop
-                        if len(station) > 0:
-                            for station in stations:
+                for code in networkStationCodes:
+                    (net, sta) = code.split(".")
+                    kwargsstation['net'] = net
+                    kwargsstation['sta'] = sta
+#                     print net,sta
+                    inventory = self.client.get_stations(**kwargsstation)
+                    i=0
+                    # Event loop
+                    if inventory is not None and len(inventory.networks) > 0:
+                        for network in inventory.networks:
+                            for station in network.stations:
                                 i += 1
                                 delta = util.locations2degrees(station.latitude,
                                                            station.longitude,
@@ -384,11 +401,11 @@ class RequestBuilder(object):
                                                            origin.longitude)
                                 (ta, slowness) = self.__find_arrivalTime(origin.time, delta, origin.depth)
                                 (z,n,e) = self._getFDSNChannelList(station, ta, targetSamplingRate, allowedGainCodes)
-
+        
                                 EI = self.__build_event_dictionary(origin.time, origin.latitude, origin.longitude, origin.depth)
                                 SI = self.__build_station_dictionary(network.code, station.code, station.latitude, station.longitude, station.elevation)
                                 PI = self.__build_pick_dictionary("P", ta, slowness)
-
+        
                                 lines.append((ta + timeRange.min(),
                                           ta + timeRange.max(),
                                           network.code,
@@ -397,23 +414,26 @@ class RequestBuilder(object):
                                           SI,
                                           EI,
                                           PI)
-                                         )
-                        else:
-                            print >>sys.stderr,"No Stations Found"
-            else:
-                station = self.client.get_stations(**kwargsstation)
-        
-        request = self.__organize_by_events(lines)
+                                          )
 
+
+                    else:
+                        print >>sys.stderr,"No Stations Found"
+            else:
+                print >>sys.stderr, "Erro, sem estacao especificada use *.* para pedir tudo."
+                sys.exit()
+
+        request = self.__organize_by_event(lines)
+ 
         for key in request:
             print key
-            for line in request[key]:
-                print " %s - %s\n %s %s\n %s\n %s\n %s\n %s" % line
+            for line in lines:
+                print " %s - %s\n %s %s\n %s\n %s\n %s\n %s" % lines
                 print ""
             print ""
 
-        print "AQUI2"  
-#pass
+
+
 
 if __name__ == "__main__":
     # Get an Instance of the class
@@ -430,7 +450,7 @@ if __name__ == "__main__":
                     stationRestrictionArea = AreaRange(-150.0, -90.0, 15.0, 35.0),
 
                     eventRestrictionArea = AreaRange(-75.0, -15.0, -35.0, -45.0),
-                    magnitudeRange = Range(4.5, 7.0),
+                    magnitudeRange = Range(5.0, 7.0),
                     depthRange = Range(0.0, 400.0),
                     distanceRange = None
                     )
