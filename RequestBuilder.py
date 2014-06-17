@@ -134,7 +134,7 @@ class RequestBuilder(object):
         request= {}
 
         for line in lines:
-            key = "%s" % (line[4])
+            key = "%s" % (line[2])
             try:
                 list = request[key]
             except KeyError:
@@ -299,12 +299,10 @@ class RequestBuilder(object):
                             SI = self.__build_station_dictionary(network.code, station.code, station.latitude, station.longitude, station.elevation)
                             PI = self.__build_pick_dictionary("P", ta, slowness)
                             
-                            a = EI[0]
                             lines.append((ta + timeRange.min(),
                                           ta + timeRange.max(),
                                           network.code,
                                           station.code,
-                                          a,
                                           [z,n,e],
                                           SI,
                                           EI,
@@ -408,8 +406,7 @@ class RequestBuilder(object):
         
                                 lines.append((ta + timeRange.min(),
                                           ta + timeRange.max(),
-                                          network.code,
-                                          station.code,
+                                          EI['eventId'],
                                           [z,n,e],
                                           SI,
                                           EI,
@@ -424,11 +421,10 @@ class RequestBuilder(object):
                 sys.exit()
 
         request = self.__organize_by_event(lines)
- 
         for key in request:
             print key
             for line in lines:
-                print " %s - %s\n %s %s\n %s\n %s\n %s\n %s" % lines
+                print " %s - %s\n %s %s\n %s\n %s\n %s\n" % line
                 print ""
             print ""
 
