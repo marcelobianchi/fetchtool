@@ -1,6 +1,8 @@
 from obspy import fdsn
 import shutil, StringIO, os, sys
 from seiscomp.arclink.manager import ArclinkManager, ArclinkError
+from Savers import Saver
+from obspy.core import read as oREAD, Stream
 
 class BaseFetcher(object):
     pass
@@ -138,19 +140,18 @@ class Downloader(object):
         self._show_resume = resume
         self._force = replacetree
 
-        if not isinstance(fetcher, BaseFetcher):
+        if fetcher is not None and not isinstance(fetcher, BaseFetcher):
             raise Exception("Supplied fetcher %s is not a Fetcher." % str(fetcher))
-
         self._fetcher = fetcher
-        if isinstance(extracter, list):
-            for saver in extracter:
-                if not isinstance(saver, Saver):
-                    raise Exception("Extracter %s is not of type Saver Class" % str(saver))
-            self._extracter = extracter
+
+        if not isinstance(extracter, list):
+            self._extracter = [ extracter ]
         else:
-            if not isinstance(extracter, Saver):
-                raise Exception("Extracter %s is not of type Saver Class" % str(extracter))
-            self._extracted = [ extracter ]
+            self._extracter = extracter
+
+        for saver in self._extracter:
+            if saver is not None and not isinstance(saver, Saver):
+                raise Exception("Extracter %s is not of type Saver Class" % str(saver))
 
         if not os.path.isdir(basedir):
             try:
@@ -183,7 +184,7 @@ class Downloader(object):
         removed = 0
 
         # Loop on request inside requests
-        for key in request.keys():
+        for key in requests.keys():
 
             # Find the folder
             _cfolder = self._buildfolder(key)
@@ -226,5 +227,6 @@ class Downloader(object):
 
                 if data and self._extracter:
                     for extracter in self._extracter:
+                        if extracter is None: continue
                         result = extracter.work(self._buildfolder(key), key, request, data, extracterparams)
                         print >>sys.stderr,"  Wrote (In:%d Assoc:%d nWin:%d rms:%d 3c:%d) -- %d files" % result 

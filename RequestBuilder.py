@@ -4,6 +4,7 @@ from obspy.core import AttribDict
 from obspy.core.utcdatetime import UTCDateTime
 from obspy.core import util
 from obspy import taup
+from obspy.fdsn.header import FDSNException
 
 class Range(object):
     def __init__(self, minvalue, maxvalue):
@@ -149,7 +150,7 @@ class RequestBuilder(object):
     FDSN specific Methods
     '''
 
-    def _chooseFDSN(self, item, channel, targetsps, instcode):
+    def __chooseFDSN(self, item, channel, targetsps, instcode):
 
         # Build a newitem for the current channel
         newitem = (channel.location_code, channel.code, channel.sample_rate, channel.azimuth, channel.dip, abs(channel.sample_rate - targetsps))
@@ -170,7 +171,7 @@ class RequestBuilder(object):
 
         return item
 
-    def _getFDSNChannelList(self, station, t0, targetsps, instcode):
+    def __getFDSNChannelList(self, station, t0, targetsps, instcode):
         clist = [ ]
 
         ## Choose will build something like: (loca, chan, sps , az  , dip , dsps)
@@ -183,11 +184,11 @@ class RequestBuilder(object):
                 continue
 
             if channel.code[-1] == "Z":
-                z = self._chooseFDSN(z, channel, targetsps, instcode)
+                z = self.__chooseFDSN(z, channel, targetsps, instcode)
             elif channel.code[-1] == "N" or channel.code[-1] == "1":
-                n = self._chooseFDSN(n, channel, targetsps, instcode)
+                n = self.__chooseFDSN(n, channel, targetsps, instcode)
             elif channel.code[-1] == "E" or channel.code[-1] == "2":
-                e = self._chooseFDSN(e, channel, targetsps, instcode)
+                e = self.__chooseFDSN(e, channel, targetsps, instcode)
 #             else:
 #                 print >>sys.stderr, "Unknow channel %s.%s" % (channel.location_code, channel.code)
 
@@ -293,7 +294,7 @@ class RequestBuilder(object):
                                                            origin.latitude,
                                                            origin.longitude)
                             (ta, slowness) = self.__find_arrivalTime(origin.time, delta, origin.depth)
-                            (z,n,e) = self._getFDSNChannelList(station, ta, targetSamplingRate, allowedGainCodes)
+                            (z,n,e) = self.__getFDSNChannelList(station, ta, targetSamplingRate, allowedGainCodes)
 
                             EI = self.__build_event_dictionary(origin.time, origin.latitude, origin.longitude, origin.depth)
                             SI = self.__build_station_dictionary(network.code, station.code, station.latitude, station.longitude, station.elevation)
@@ -319,6 +320,8 @@ class RequestBuilder(object):
                 print " %s - %s\n %s %s\n %s\n %s\n %s\n %s" % line
                 print ""
             print ""
+
+        return request
 
 
     def eventBased(self, t0, t1, targetSamplingRate, allowedGainCodes, timeRange,
@@ -352,8 +355,12 @@ class RequestBuilder(object):
             kwargsevent["mindepth"] = depthRange.min()
             kwargsevent["maxdepth"] = depthRange.max()
 
-        events = self.client.get_events(**kwargsevent)
-        print >>sys.stderr,"Found %d events." % len(events)
+        try:
+            events = self.client.get_events(**kwargsevent)
+            print >>sys.stderr,"Found %d events." % len(events)
+        except FDSNException:
+            print >>sys.stderr,"\nNo events found for the given parameters.\n"
+            sys.exit()
 
         for event in events:
             origin = event.preferred_origin()
@@ -399,7 +406,7 @@ class RequestBuilder(object):
                                                            origin.latitude,
                                                            origin.longitude)
                                 (ta, slowness) = self.__find_arrivalTime(origin.time, delta, origin.depth)
-                                (z,n,e) = self._getFDSNChannelList(station, ta, targetSamplingRate, allowedGainCodes)
+                                (z,n,e) = self.__getFDSNChannelList(station, ta, targetSamplingRate, allowedGainCodes)
         
                                 EI = self.__build_event_dictionary(origin.time, origin.latitude, origin.longitude, origin.depth)
                                 SI = self.__build_station_dictionary(network.code, station.code, station.latitude, station.longitude, station.elevation)
@@ -430,7 +437,7 @@ class RequestBuilder(object):
                 print ""
             print ""
 
-
+        return request
 
 
 if __name__ == "__main__":
@@ -448,7 +455,7 @@ if __name__ == "__main__":
                     stationRestrictionArea = AreaRange(-150.0, -90.0, 15.0, 35.0),
 
                     eventRestrictionArea = AreaRange(-75.0, -15.0, -35.0, -45.0),
-                    magnitudeRange = Range(5.5, 7.0),
+                    magnitudeRange = Range(6.5, 7.0),
                     depthRange = Range(0.0, 400.0),
                     distanceRange = None
                     )

@@ -1,5 +1,15 @@
 from SeismicHandlerStation import ShStation
 import os, sys
+from obspy.core import AttribDict
+
+# Defaults Time Constants
+SECOND = 1
+MINUTE = 60*SECOND
+HOUR = 60*MINUTE
+DAY = 24*HOUR
+WEEK = 7 * DAY
+MONTH = 30 * DAY
+HEAR = 365 * DAY
 
 class Saver(object):
     def __init__(self, debug = False):
@@ -43,7 +53,7 @@ class Saver(object):
                         if self._debug: print >>sys.stderr,"Duplicating trace %s evid=%s in favor of evid=%s" % (trace.id, trace._f_evid, ev['eventId'])
                         trace = trace.copy()
                         extra.append(trace)
-                    trace._f_evid = ev['eventId']
+                    trace._f_evid = "%s_%s" % (ev['eventId'], sa['stationId'])
                     trace.stats.EVIDMINE = ev['eventId']
                     trace._f_linecount = linecount
             linecount += 1
