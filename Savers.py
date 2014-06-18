@@ -48,7 +48,8 @@ class Saver(object):
             for trace in stream:
                 ts = trace.stats.starttime
                 te = trace.stats.endtime
-                if evp['time'] > ts and evp['time'] <= te:
+                stid = "%s.%s" % (trace.stats.network,trace.stats.station)
+                if evp['time'] > ts and evp['time'] <= te and stid == sa['stationId']:
                     if hasattr(trace, '_f_evid'):
                         if self._debug: print >>sys.stderr,"Duplicating trace %s evid=%s in favor of evid=%s" % (trace.id, trace._f_evid, ev['eventId'])
                         trace = trace.copy()
