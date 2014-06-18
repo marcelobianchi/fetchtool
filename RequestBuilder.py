@@ -134,7 +134,7 @@ class RequestBuilder(object):
         request= {}
 
         for line in lines:
-            key = "%s" % (line[2])
+            key = "%s" % (line[6]['eventId'])
             try:
                 list = request[key]
             except KeyError:
@@ -315,7 +315,7 @@ class RequestBuilder(object):
 
         for key in request:
             print key
-            for line in lines:
+            for line in request[key]:
                 print " %s - %s\n %s %s\n %s\n %s\n %s\n %s" % line
                 print ""
             print ""
@@ -353,6 +353,7 @@ class RequestBuilder(object):
             kwargsevent["maxdepth"] = depthRange.max()
 
         events = self.client.get_events(**kwargsevent)
+        print >>sys.stderr,"Found %d events." % len(events)
 
         for event in events:
             origin = event.preferred_origin()
@@ -406,7 +407,8 @@ class RequestBuilder(object):
         
                                 lines.append((ta + timeRange.min(),
                                           ta + timeRange.max(),
-                                          EI['eventId'],
+                                          network.code,
+                                          station.code,
                                           [z,n,e],
                                           SI,
                                           EI,
@@ -423,8 +425,8 @@ class RequestBuilder(object):
         request = self.__organize_by_event(lines)
         for key in request:
             print key
-            for line in lines:
-                print " %s - %s\n %s %s\n %s\n %s\n %s\n" % line
+            for line in request[key]:
+                print " %s - %s\n %s %s\n %s\n %s\n %s\n %s\n" % line
                 print ""
             print ""
 
@@ -446,7 +448,7 @@ if __name__ == "__main__":
                     stationRestrictionArea = AreaRange(-150.0, -90.0, 15.0, 35.0),
 
                     eventRestrictionArea = AreaRange(-75.0, -15.0, -35.0, -45.0),
-                    magnitudeRange = Range(5.0, 7.0),
+                    magnitudeRange = Range(5.5, 7.0),
                     depthRange = Range(0.0, 400.0),
                     distanceRange = None
                     )
