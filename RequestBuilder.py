@@ -145,6 +145,23 @@ class RequestBuilder(object):
 
         return request
 
+    def __fill_kwargs_AreaRange(self, kwargs, RestrictionArea):
+        
+        kwargs["minlatitude"] = RestrictionArea.ymin()
+        kwargs["maxlatitude"] = RestrictionArea.ymax()
+        kwargs["minlongitude"] = RestrictionArea.xmin()
+        kwargs["maxlongitude"] = RestrictionArea.xmax()
+        
+        return kwargs
+
+    def __fill_kwargs_distRange(self, kwargs, distanceRange):
+        
+        kwargs["latitude"]  = station.latitude
+        kwargs["longitude"] = station.longitude
+        kwargs["minradius"] = distanceRange.min()
+        kwargs["maxradius"] = distanceRange.max()
+        
+        return kwargs
 
     '''
     FDSN specific Methods
@@ -229,10 +246,7 @@ class RequestBuilder(object):
 
         # Add rectangular coordinate restrictions
         if stationRestrictionArea:
-            kwargsstation["minlatitude"] = stationRestrictionArea.ymin()
-            kwargsstation["maxlatitude"] = stationRestrictionArea.ymax()
-            kwargsstation["minlongitude"] = stationRestrictionArea.xmin()
-            kwargsstation["maxlongitude"] = stationRestrictionArea.xmax()
+            kwargsstation = self.__fill_kwargs_AreaRange(kwargsstation, stationRestrictionArea)
 
         ## Start the Loop
         # On the given station patterns
@@ -254,15 +268,13 @@ class RequestBuilder(object):
 
                     # Add the event area restrictions
                     if eventRestrictionArea:
-                        kwargsevent["minlatitude"] = eventRestrictionArea.ymin()
-                        kwargsevent["maxlatitude"] = eventRestrictionArea.ymax()
-                        kwargsevent["minlongitude"] = eventRestrictionArea.xmin()
-                        kwargsevent["maxlongitude"] = eventRestrictionArea.xmax()
+                        kwargsevent = self.__fill_kwargs_AreaRange(kwargsevent, eventRestrictionArea)
+#                         kwargsevent["minlatitude"] = eventRestrictionArea.ymin()
+#                         kwargsevent["maxlatitude"] = eventRestrictionArea.ymax()
+#                         kwargsevent["minlongitude"] = eventRestrictionArea.xmin()
+#                         kwargsevent["maxlongitude"] = eventRestrictionArea.xmax()
                     elif distanceRange:
-                        kwargsevent["latitude"]  = station.latitude
-                        kwargsevent["longitude"] = station.longitude
-                        kwargsevent["minradius"] = distanceRange.min()
-                        kwargsevent["maxradius"] = distanceRange.max()
+                        kwargsevent = self.__fill_kwargs_distRange(kwargsevent, distanceRange)
 
                     # Event Depth Filter
                     if depthRange:
@@ -445,7 +457,7 @@ if __name__ == "__main__":
     rb = RequestBuilder("IRIS")
 
     # Call the stationBased
-    rb.eventBased(t0 = UTCDateTime("2011-01-01"),
+    rb.stationBased(t0 = UTCDateTime("2011-01-01"),
                     t1 = UTCDateTime("2011-02-01"),
                     targetSamplingRate = 20.0,
                     allowedGainCodes = ["H", "L"],
@@ -455,7 +467,7 @@ if __name__ == "__main__":
                     stationRestrictionArea = AreaRange(-150.0, -90.0, 15.0, 35.0),
 
                     eventRestrictionArea = AreaRange(-75.0, -15.0, -35.0, -45.0),
-                    magnitudeRange = Range(6.5, 7.0),
+                    magnitudeRange = Range(5.5, 7.0),
                     depthRange = Range(0.0, 400.0),
                     distanceRange = None
                     )
