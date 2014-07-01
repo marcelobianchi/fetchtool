@@ -145,22 +145,71 @@ class RequestBuilder(object):
 
         return request
 
-    def __fill_kwargs_AreaRange(self, kwargs, RestrictionArea):
-        
-        kwargs["minlatitude"] = RestrictionArea.ymin()
-        kwargs["maxlatitude"] = RestrictionArea.ymax()
-        kwargs["minlongitude"] = RestrictionArea.xmin()
-        kwargs["maxlongitude"] = RestrictionArea.xmax()
-        
+    def __fill_kwargsstation(self, t0, t1,
+                             stationRestrictionArea,
+                             latitude, longitude, distanceRange):
+
+        kwargs = {
+                  "starttime": t0,
+                  "endtime": t1,
+                  "level": "channel"
+                  }
+
+        # Add rectangular coordinate restrictions
+        if stationRestrictionArea and distanceRange:
+            raise Exception("Is not permitted to give parameters distanceRange and stationRestrictionArea")
+        elif stationRestrictionArea is not None and distanceRange is None:
+            kwargs["minlatitude"] = stationRestrictionArea.ymin()
+            kwargs["maxlatitude"] = stationRestrictionArea.ymax()
+            kwargs["minlongitude"] = stationRestrictionArea.xmin()
+            kwargs["maxlongitude"] = stationRestrictionArea.xmax()
+        elif distanceRange is not None and stationRestrictionArea is None:
+            if latitude is None or longitude is None:
+                raise Exception("Error setting the coordinate reference.")
+            kwargs["latitude"]  = latitude
+            kwargs["longitude"] = longitude
+            kwargs["minradius"] = distanceRange.min()
+            kwargs["maxradius"] = distanceRange.max()
+        else:
+            pass
+
         return kwargs
 
-    def __fill_kwargs_distRange(self, kwargs, distanceRange):
-        
-        kwargs["latitude"]  = station.latitude
-        kwargs["longitude"] = station.longitude
-        kwargs["minradius"] = distanceRange.min()
-        kwargs["maxradius"] = distanceRange.max()
-        
+    def __fill_kwargsevent(self, t0, t1,
+                   eventRestrictionArea,
+                   magnitudeRange,
+                   depthRange,
+                   latitude,
+                   longitude,
+                   distanceRange):
+
+        kwargs = {
+                       "starttime": t0,
+                       "endtime": t1,
+                       }
+        if magnitudeRange:
+            kwargs["minmagnitude"] = magnitudeRange.min()
+            kwargs["maxmagnitude"] = magnitudeRange.max()
+
+        if depthRange:
+            kwargs["mindepth"] = depthRange.min()
+            kwargs["maxdepth"] = depthRange.max()
+
+        if distanceRange and eventRestrictionArea:
+            raise Exception ("Is not permitted to give parameters distanceRange and eventRestrictionArea")
+        elif distanceRange is not None and eventRestrictionArea is None:
+            kwargs["latitude"]  = latitude
+            kwargs["longitude"] = longitude
+            kwargs["minradius"] = distanceRange.min()
+            kwargs["maxradius"] = distanceRange.max()
+        elif distanceRange is None and eventRestrictionArea is not None:
+            kwargs["minlatitude"] = eventRestrictionArea.ymin()
+            kwargs["maxlatitude"] = eventRestrictionArea.ymax()
+            kwargs["minlongitude"] = eventRestrictionArea.xmin()
+            kwargs["maxlongitude"] = eventRestrictionArea.xmax()
+        else:
+            pass
+
         return kwargs
 
     '''
@@ -234,19 +283,14 @@ class RequestBuilder(object):
         lines = []
 
         # Start Build the parameters to pass on to the Client
-        kwargsstation = {
-                  "starttime": t0,
-                  "endtime": t1,
-                  "level": "channel"
-                  }
+        kwargsstation = self.__fill_kwargsstation(t0,
+                                                  t1,
+                                                  stationRestrictionArea,
+                                                  None, None, None)
 
         # Check if network/station code is a string -> list
         if isinstance(networkStationCodes, str):
             networkStationCodes = [networkStationCodes]
-
-        # Add rectangular coordinate restrictions
-        if stationRestrictionArea:
-            kwargsstation = self.__fill_kwargs_AreaRange(kwargsstation, stationRestrictionArea)
 
         ## Start the Loop
         # On the given station patterns
@@ -261,40 +305,21 @@ class RequestBuilder(object):
                 # On Stations found
                 for station in network.stations:
                     # Start Build the parameters to pass on the Event Client
-                    kwargsevent = {
-                               "starttime": max([station.start_date, t0]),
-                               "endtime": min([station.end_date, t1])
-                               }
-
-                    # Add the event area restrictions
-                    if eventRestrictionArea:
-                        kwargsevent = self.__fill_kwargs_AreaRange(kwargsevent, eventRestrictionArea)
-#                         kwargsevent["minlatitude"] = eventRestrictionArea.ymin()
-#                         kwargsevent["maxlatitude"] = eventRestrictionArea.ymax()
-#                         kwargsevent["minlongitude"] = eventRestrictionArea.xmin()
-#                         kwargsevent["maxlongitude"] = eventRestrictionArea.xmax()
-                    elif distanceRange:
-                        kwargsevent = self.__fill_kwargs_distRange(kwargsevent, distanceRange)
-
-                    # Event Depth Filter
-                    if depthRange:
-                        if depthRange.min() is not None:
-                            kwargsevent["mindepth"] = depthRange.min()
-                        if depthRange.max() is not None:
-                            kwargsevent["maxdepth"] = depthRange.max()
-
-                    # Magnitude Filter
-                    if magnitudeRange:
-                        if magnitudeRange.min() is not None:
-                            kwargsevent["minmagnitude"] = magnitudeRange.min()
-                        if magnitudeRange.max() is not None:
-                            kwargsevent["maxmagnitude"] = magnitudeRange.max()
+                    kwargsevent = self.__fill_kwargsevent(max([station.start_date, t0]),
+                                                          min([station.end_date, t1]),
+                                                          eventRestrictionArea,
+                                                          magnitudeRange,
+                                                          depthRange,
+                                                          station.latitude,
+                                                          station.longitude,
+                                                          distanceRange)
 
                     events = self.client.get_events(**kwargsevent)
 
                     i=0
                     # Event loop
                     if len(events) > 0:
+                        events.plot()
                         for event in events:
                             i += 1
                             origin = event.preferred_origin()
@@ -326,15 +351,7 @@ class RequestBuilder(object):
 
         request = self.__organize_by_station(lines)
 
-        for key in request:
-            print key
-            for line in request[key]:
-                print " %s - %s\n %s %s\n %s\n %s\n %s\n %s" % line
-                print ""
-            print ""
-
         return request
-
 
     def eventBased(self, t0, t1, targetSamplingRate, allowedGainCodes, timeRange,
                    eventRestrictionArea,
@@ -346,26 +363,13 @@ class RequestBuilder(object):
                    distanceRange = None
                    ):
         lines = []
-        
-        
-        kwargsevent = {
-                       "starttime": t0,
-                       "endtime": t1,
-                       }
-        
-        if eventRestrictionArea:
-            kwargsevent["minlatitude"] = eventRestrictionArea.ymin()
-            kwargsevent["maxlatitude"] = eventRestrictionArea.ymax()
-            kwargsevent["minlongitude"] = eventRestrictionArea.xmin()
-            kwargsevent["maxlongitude"] = eventRestrictionArea.xmax()
 
-        if magnitudeRange:
-            kwargsevent["minmagnitude"] = magnitudeRange.min()
-            kwargsevent["maxmagnitude"] = magnitudeRange.max()
 
-        if depthRange:
-            kwargsevent["mindepth"] = depthRange.min()
-            kwargsevent["maxdepth"] = depthRange.max()
+        kwargsevent = self.__fill_kwargsevent(t0, t1,
+                                              eventRestrictionArea,
+                                              magnitudeRange,
+                                              depthRange,
+                                              None, None, None)
 
         try:
             events = self.client.get_events(**kwargsevent)
@@ -380,25 +384,13 @@ class RequestBuilder(object):
             if origin is None:
                 print >>sys.stderr,"Bad origin."
                 continue
-            
-            kwargsstation = {
-                   "starttime": (origin.time - 86400),
-                   "endtime": (origin.time +86400),
-                   "level": "channel"
-                   }
-            
-            if stationRestrictionArea:
-                kwargsstation["minlatitude"] = stationRestrictionArea.ymin()
-                kwargsstation["maxlatitude"] = stationRestrictionArea.ymax()
-                kwargsstation["minlongitude"] = stationRestrictionArea.xmin()
-                kwargsstation["maxlongitude"] = stationRestrictionArea.xmax()
 
-            if distanceRange:
-                kwargsstation["latitude"]  = origin.latitude
-                kwargsstation["longitude"] = origin.longitude
-                kwargsstation["minradius"] = distanceRange.min()
-                kwargsstation["maxradius"] = distanceRange.max()
-
+            kwargsstation = self.__fill_kwargsstation((origin.time - 86400),
+                                                      (origin.time + 86400),
+                                                      stationRestrictionArea,
+                                                      origin.latitude,
+                                                      origin.longitude,
+                                                      distanceRange)
 
             if networkStationCodes:
                 for code in networkStationCodes:
@@ -442,14 +434,17 @@ class RequestBuilder(object):
                 sys.exit()
 
         request = self.__organize_by_event(lines)
+
+        return request
+
+    def show_request(self, request):
         for key in request:
             print key
             for line in request[key]:
                 print " %s - %s\n %s %s\n %s\n %s\n %s\n %s\n" % line
                 print ""
             print ""
-
-        return request
+        return
 
 
 if __name__ == "__main__":
@@ -457,7 +452,7 @@ if __name__ == "__main__":
     rb = RequestBuilder("IRIS")
 
     # Call the stationBased
-    rb.stationBased(t0 = UTCDateTime("2011-01-01"),
+    req = rb.stationBased(t0 = UTCDateTime("2011-01-01"),
                     t1 = UTCDateTime("2011-02-01"),
                     targetSamplingRate = 20.0,
                     allowedGainCodes = ["H", "L"],
@@ -466,8 +461,9 @@ if __name__ == "__main__":
                     networkStationCodes = [ "TA.A*"],
                     stationRestrictionArea = AreaRange(-150.0, -90.0, 15.0, 35.0),
 
-                    eventRestrictionArea = AreaRange(-75.0, -15.0, -35.0, -45.0),
-                    magnitudeRange = Range(5.5, 7.0),
+                    eventRestrictionArea = None, #AreaRange(-75.0, -15.0, -35.0, -45.0),
+                    magnitudeRange = Range(5.0, 7.0),
                     depthRange = Range(0.0, 400.0),
-                    distanceRange = None
+                    distanceRange = Range(50, 90)
                     )
+    rb.show_request(req)
