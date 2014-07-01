@@ -24,8 +24,6 @@ class FDSNFetcher(BaseFetcher):
         self._all_in_one = allinone
         self._merge = merge
 
-        self._fc = fdsn.Client(self._host)
-
     def work(self, key, items):
         stream = Stream()
         for (t0, t1, net, sta, channels, sa, ev, evp) in items:

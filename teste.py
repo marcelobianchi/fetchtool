@@ -11,29 +11,29 @@ fetcher = FDSNFetcher("IRIS", allinone = False, merge = True)
 saver = SacSaver(debug = False)
 saverparam = saver.getDefaultParameters()
 
-saverparam.tw.prephasevalue  = 10.0
-saverparam.tw.postphasevalue = 40.0
+saverparam.tw.prephasevalue  = 60.0
+saverparam.tw.postphasevalue = 300.0
 saverparam.rms = None 
 saverparam.rmsratio = 2.0
 
 
 # Call the stationBased
-r = rb.eventBased(t0 = UTCDateTime("2011-01-01"),
-                t1 = UTCDateTime("2011-02-01"),
+r = rb.eventBased(t0 = UTCDateTime("2007-01-01"),
+                t1 = UTCDateTime("2008-01-01"),
                 targetSamplingRate = 20.0,
                 allowedGainCodes = ["H", "L"],
-                timeRange = Range(-20.0, 50.0),
+                timeRange = Range(-90, 600.0),
 
-                networkStationCodes = [ "TA.Z*"],
-                stationRestrictionArea = AreaRange(-150.0, -90.0, 15.0, 35.0),
+                networkStationCodes = [ "TA.*"],
+                stationRestrictionArea = AreaRange(-150.0, -90.0, 15.0, 60.0),
 
-                eventRestrictionArea = AreaRange(-75.0, -15.0, -35.0, -45.0),
-                magnitudeRange = Range(5.0, 7.0),
+                eventRestrictionArea = AreaRange(-35.0, -10.0, -55.0, -60.0),
+                magnitudeRange = Range(6.2, 7.0),
                 depthRange = Range(0.0, 400.0),
                 distanceRange = None
                 )
 
-dl = Downloader(basedir = "/home_ad/mbianchi/datateste/",
+dl = Downloader(basedir = "/home_ad/thais/primeirosdados",
                 replacetree=True,
                 resume = True,
                 fetcher = fetcher,

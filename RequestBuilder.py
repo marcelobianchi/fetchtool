@@ -313,14 +313,18 @@ class RequestBuilder(object):
                                                           station.latitude,
                                                           station.longitude,
                                                           distanceRange)
-
-                    events = self.client.get_events(**kwargsevent)
-
+                    print kwargsevent
+                    try:
+                        events = self.client.get_events(**kwargsevent)
+                    except FDSNException,e:
+                        print " nao existe eventos conpativeis com a estacao %s.%s" % (network.code,station.code)
+                        print " Error: %s" % e
+                        continue
 
                     i=0
                     # Event loop
-                    if len(events) > 0:
-                        events.plot()
+                    if events and len(events) > 0:
+#                        events.plot()
                         for event in events:
                             i += 1
                             origin = event.preferred_origin()
@@ -374,6 +378,7 @@ class RequestBuilder(object):
 
         try:
             events = self.client.get_events(**kwargsevent)
+            events.plot()
             print >>sys.stderr,"Found %d events." % len(events)
         except FDSNException:
             print >>sys.stderr,"\nNo events found for the given parameters.\n"
@@ -381,7 +386,6 @@ class RequestBuilder(object):
 
         for event in events:
             origin = event.preferred_origin()
-
             if origin is None:
                 print >>sys.stderr,"Bad origin."
                 continue
@@ -453,18 +457,20 @@ if __name__ == "__main__":
     rb = RequestBuilder("IRIS")
 
     # Call the stationBased
-    req = rb.stationBased(t0 = UTCDateTime("2011-01-01"),
-                    t1 = UTCDateTime("2011-02-01"),
+    req = rb.stationBased(t0 = UTCDateTime("2007-01-01"),
+                    t1 = UTCDateTime("2008-01-01"),
                     targetSamplingRate = 20.0,
                     allowedGainCodes = ["H", "L"],
-                    timeRange = Range(-20.0, 50.0),
+                    timeRange = Range(-120, 600),
 
-                    networkStationCodes = [ "TA.A*"],
-                    stationRestrictionArea = AreaRange(-150.0, -90.0, 15.0, 35.0),
+                    networkStationCodes = [ "TA.*"],
+                    stationRestrictionArea = AreaRange(-150.0, -90.0, 15.0, 60.0),
 
-                    eventRestrictionArea = None, #AreaRange(-75.0, -15.0, -35.0, -45.0),
-                    magnitudeRange = Range(5.0, 7.0),
+                    eventRestrictionArea = AreaRange(-35.0, -10.0, -55.0, -60.0),
+                    magnitudeRange = Range(6.2, 9.0),
                     depthRange = Range(0.0, 400.0),
-                    distanceRange = Range(50, 90)
+                    distanceRange = None
                     )
     rb.show_request(req)
+
+
