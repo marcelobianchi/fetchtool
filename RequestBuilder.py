@@ -316,6 +316,7 @@ class RequestBuilder(object):
 
                     events = self.client.get_events(**kwargsevent)
 
+
                     i=0
                     # Event loop
                     if len(events) > 0:
