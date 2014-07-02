@@ -6,6 +6,9 @@ from obspy.core import util
 from obspy import taup
 from obspy.fdsn.header import FDSNException
 
+class NextItem(Exception):
+    pass
+
 class Range(object):
     def __init__(self, minvalue, maxvalue):
         self._min = min([minvalue,maxvalue])
@@ -54,7 +57,29 @@ class BaseBuilder(object):
     Generic Methods that can be used in FDSN or ARCLINK modes
     '''
 
-    def find_arrivalTime(self, t0, delta, depth, phase = ["P", "Pn", "Pdiff", "PKP", "PKiKP", "PKPab", "PKPbc", "PKPdf", "PKPdiff"]):
+    def resolve_phasenames(self, value):
+        list = []
+
+        '''
+        Define more groups as needed:
+        '''
+
+        groups = {
+          "pgroup": ["P", "Pn", "Pdiff", "PKP", "PKiKP", "PKPab", "PKPbc", "PKPdf", "PKPdiff" ]
+        }
+
+        if isinstance(value, str):
+            value = [ value ]
+
+        for item in value:
+            try:
+                list.extend(groups[item])
+            except KeyError,e:
+                list.append(item)
+
+        return (list[0], list)
+
+    def find_arrivalTime(self, t0, delta, depth, phase):
         '''
             delta is in degrees
             depth is in meters
@@ -63,7 +88,7 @@ class BaseBuilder(object):
 
         seltimes = filter(lambda x: x['phase_name'] in phase, times)
         if len(seltimes) == 0: 
-            return (None, None)
+            raise NextItem("No phases selected for Depth: %s Distance: %s Phases: %s" % (delta, depth, phase))
 
         time = seltimes[0]['time']
         slowness = seltimes[0]['dT/dD']
@@ -268,6 +293,9 @@ class RequestBuilder(BaseBuilder):
 #             else:
 #                 print >>sys.stderr, "Unknow channel %s.%s" % (channel.location_code, channel.code)
 
+        if z[0] is None or n[0] is None or e[0] is None:
+            raise NextItem("No Z, N or E channel(s) found")
+
         # Return only (location, channel, azimuth, dip)
         z = (z[0], z[1], z[3], z[4])
         n = (n[0], n[1], n[3], n[4])
@@ -280,7 +308,7 @@ class RequestBuilder(BaseBuilder):
     Request Builder Methods
     '''
 
-    def stationBased(self, t0, t1, targetSamplingRate, allowedGainCodes, timeRange,
+    def stationBased(self, t0, t1, targetSamplingRate, allowedGainCodes, timeRange, phasesOrPhaseGroup, 
                     networkStationCodes,
                     stationRestrictionArea,
 
@@ -288,6 +316,9 @@ class RequestBuilder(BaseBuilder):
                     magnitudeRange = None,
                     depthRange = None,
                     distanceRange = None):
+
+        (phasename, phaselist) = self.resolve_phasenames(phasesOrPhaseGroup)
+        print "Searching using: %s %s" % (phasename, phaselist)
 
         # List of request lines
         lines = []
@@ -323,36 +354,37 @@ class RequestBuilder(BaseBuilder):
                                                           station.latitude,
                                                           station.longitude,
                                                           distanceRange)
-                    print kwargsevent
+
                     try:
                         events = self.client.get_events(**kwargsevent)
                     except FDSNException,e:
-                        print " nao existe eventos conpativeis com a estacao %s.%s" % (network.code,station.code)
-                        print " Error: %s" % e
+                        print >>sys.stderr,"No events found compatible with station %s.%s" % (network.code,station.code)
                         continue
 
-                    i=0
                     # Event loop
                     if events and len(events) > 0:
 #                        events.plot()
                         for event in events:
-                            i += 1
-                            origin = event.preferred_origin()
-                            if origin is None:
-                                print >>sys.stderr,"Bad origin."
-                                continue
-                            delta = util.locations2degrees(station.latitude,
-                                                           station.longitude,
-                                                           origin.latitude,
-                                                           origin.longitude)
-                            (ta, slowness) = self.find_arrivalTime(origin.time, delta, origin.depth)
-                            (z,n,e) = self.getFDSNChannelList(station, ta, targetSamplingRate, allowedGainCodes)
+                            try:
+                                origin = event.preferred_origin()
 
-                            EI = self.build_event_dictionary(origin.time, origin.latitude, origin.longitude, origin.depth)
-                            SI = self.build_station_dictionary(network.code, station.code, station.latitude, station.longitude, station.elevation)
-                            PI = self.build_pick_dictionary("P", ta, slowness)
-                            
-                            lines.append((ta + timeRange.min(),
+                                if origin is None: 
+                                    raise NextItem("Bad origin for event.")
+
+                                delta = util.locations2degrees(station.latitude,
+                                                               station.longitude,
+                                                               origin.latitude,
+                                                               origin.longitude)
+
+                                (ta, slowness) = self.find_arrivalTime(origin.time, delta, origin.depth, phaselist)
+
+                                (z,n,e) = self.__getFDSNChannelList(station, ta, targetSamplingRate, allowedGainCodes)
+
+                                EI = self.build_event_dictionary(origin.time, origin.latitude, origin.longitude, origin.depth)
+                                SI = self.build_station_dictionary(network.code, station.code, station.latitude, station.longitude, station.elevation)
+                                PI = self.build_pick_dictionary(phasename, ta, slowness)
+
+                                lines.append((ta + timeRange.min(),
                                           ta + timeRange.max(),
                                           network.code,
                                           station.code,
@@ -361,6 +393,9 @@ class RequestBuilder(BaseBuilder):
                                           EI,
                                           PI)
                                          )
+                            except NextItem,e:
+                                print >>sys.stderr,"Skipping: %s" % str(e)
+
                     else:
                         print >>sys.stderr,"No Events Found"
 
@@ -368,7 +403,7 @@ class RequestBuilder(BaseBuilder):
 
         return request
 
-    def eventBased(self, t0, t1, targetSamplingRate, allowedGainCodes, timeRange,
+    def eventBased(self, t0, t1, targetSamplingRate, allowedGainCodes, timeRange, phasesOrPhaseGroup,
                    eventRestrictionArea,
                    magnitudeRange,
                    depthRange,
@@ -379,6 +414,8 @@ class RequestBuilder(BaseBuilder):
                    ):
         lines = []
 
+        (phasename, phaselist) = self.resolve_phasenames(phasesOrPhaseGroup)
+        print "Searching using: %s %s" % (phasename, phaselist)
 
         kwargsevent = self.fill_kwargsevent(t0, t1,
                                               eventRestrictionArea,
@@ -412,36 +449,39 @@ class RequestBuilder(BaseBuilder):
                     (net, sta) = code.split(".")
                     kwargsstation['net'] = net
                     kwargsstation['sta'] = sta
-#                     print net,sta
+
                     inventory = self.client.get_stations(**kwargsstation)
-                    i=0
+
                     # Event loop
                     if inventory is not None and len(inventory.networks) > 0:
                         for network in inventory.networks:
                             for station in network.stations:
-                                i += 1
-                                delta = util.locations2degrees(station.latitude,
-                                                           station.longitude,
-                                                           origin.latitude,
-                                                           origin.longitude)
-                                (ta, slowness) = self.find_arrivalTime(origin.time, delta, origin.depth)
-                                (z,n,e) = self.getFDSNChannelList(station, ta, targetSamplingRate, allowedGainCodes)
-        
-                                EI = self.build_event_dictionary(origin.time, origin.latitude, origin.longitude, origin.depth)
-                                SI = self.build_station_dictionary(network.code, station.code, station.latitude, station.longitude, station.elevation)
-                                PI = self.build_pick_dictionary("P", ta, slowness)
-        
-                                lines.append((ta + timeRange.min(),
-                                          ta + timeRange.max(),
-                                          network.code,
-                                          station.code,
-                                          [z,n,e],
-                                          SI,
-                                          EI,
-                                          PI)
-                                          )
+                                try:
+                                    delta = util.locations2degrees(station.latitude,
+                                                                   station.longitude,
+                                                                   origin.latitude,
+                                                                   origin.longitude)
 
+                                    (ta, slowness) = self.find_arrivalTime(origin.time, delta, origin.depth, phaselist)
 
+                                    (z,n,e) = self.__getFDSNChannelList(station, ta, targetSamplingRate, allowedGainCodes)
+        
+                                    EI = self.build_event_dictionary(origin.time, origin.latitude, origin.longitude, origin.depth)
+                                    SI = self.build_station_dictionary(network.code, station.code, station.latitude, station.longitude, station.elevation)
+                                    PI = self.build_pick_dictionary(phasename, ta, slowness)
+
+                                    lines.append((ta + timeRange.min(),
+                                                  ta + timeRange.max(),
+                                                  network.code,
+                                                  station.code,
+                                                  [z,n,e],
+                                                  SI,
+                                                  EI,
+                                                  PI
+                                                 )
+                                    )
+                                except NextItem, e:
+                                    print sys.stderr,"Skipping: %s" % str(e)
                     else:
                         print >>sys.stderr,"No Stations Found"
             else:
@@ -463,8 +503,9 @@ if __name__ == "__main__":
                     targetSamplingRate = 20.0,
                     allowedGainCodes = ["H", "L"],
                     timeRange = Range(-120, 600),
+                    phasesOrPhaseGroup = "P",
 
-                    networkStationCodes = [ "TA.*"],
+                    networkStationCodes = [ "TA.A*"],
                     stationRestrictionArea = AreaRange(-150.0, -90.0, 15.0, 60.0),
 
                     eventRestrictionArea = AreaRange(-35.0, -10.0, -55.0, -60.0),
