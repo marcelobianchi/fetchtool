@@ -18,15 +18,6 @@ WEEK = 7 * DAY
 MONTH = 30 * DAY
 HEAR = 365 * DAY
 
-
-# Exception Classes Used
-class EventCollision(Exception):
-    pass
-
-class MultipleComponents(Exception):
-    pass
-
-
 def unWrapNSLC(objs, archive = None, onlyShared = False):
     # unwrap lists of lists into arrays of tuples
     clist = []
@@ -42,7 +33,7 @@ def unWrapNSLC(objs, archive = None, onlyShared = False):
             clist.append((code, start, obj))
     return clist
 
-class OldRequestBuilder(object):
+class ArcLinkRequestBuilder(object):
     def __init__(self, t0, t1, stationselectors = [ ]):
         self.am = ArclinkManager("seismaster.iag.usp.br:18001", "m.bianchi@iag.usp.br")
         self.fc = fdsn.Client("IRIS")
@@ -244,88 +235,3 @@ class OldRequestBuilder(object):
         print >>sys.stderr,"StationBuilder is ready.\n"
         ## { STKEY: (T0,T1,N,S,[(LO,C)],At-Station, At-Event, At-Pick) }
         return request
-
-
-if __name__ == "__main__":
-    t0 = UTCDateTime("2012-01-01")
-    t1 = UTCDateTime("2013-01-01")
-
-    request = None
-# 
-#     if os.path.isfile("request.pik"):
-#         os.unlink("request.pik")
-
-    ## Get or Build request
-    if os.path.isfile("request.pik"):
-        try:
-            iofile = file("request.pik", "r")
-            request = pickle.load(iofile)
-            iofile.close()
-        except:
-            request = None
-
-    if request is None:
-        rb = RequestBuilder(t0, t1, stationselectors = [ "BL.*", "BR.*"])
-
-        # Events query
-        stationParams = rb.getDefaultsParameters()
-
-        ## ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~  PARAMETER FOR DIFFERENT CASES ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ 
-        ## Event 6.6 Chile
-#         stationParams.prewindow = 2*MINUTE
-#         stationParams.postwindow = 25*MINUTE
-#         stationParams.minmagnitude = 6.5
-
-        ## Event 8.1 Chile
-#         stationParams.prewindow = 5*MINUTE
-#         stationParams.postwindow = 1*HOUR
-#         stationParams.minmagnitude = 8.0
-
-        ## RF - ana
-        stationParams.prewindow = 2*MINUTE
-        stationParams.postwindow = 15*MINUTE
-        stationParams.minmagnitude = 5.5
-        stationParams.minradius = 35.0
-        stationParams.maxradius = 92.0
-
-
-        request = rb.stationBased(stationParams)
-
-        if len(request):
-            iofile = file("request.pik", "w")
-            pickle.dump(request, iofile)
-            iofile.close()
-
-    # Clients !
-    manager = ArclinkManager("seismaster.iag.usp.br:18005", "m.bianchi@iag.usp.br")
-    fdsnclient = fdsn.Client("http://moho.iag.usp.br/")
-
-    # Fetchers !
-    ftArclink = Sc3ArclinkFetcher(hostorclient = manager, allinone = False, merge = True)
-    ftFDSN = FDSNFetcher(hostorclient = fdsnclient, allinone = True, merge = True)
-
-    # Saver !
-    saverA = SacSaver(debug = False)
-    saverB = QSaver(debug = False)
-    saverParams = saverA.getDefaultParameters()
-
-    ## ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~  PARAMETER FOR DIFFERENT CASES ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ 
-    ## Event 6.6 Chile
-#     saverParams.tw.prephasevalue = 30 * SECOND
-#     saverParams.tw.postphasevalue = 15 * MINUTE
-#     folder = "/home/mbianchi/CHILE-66"
-
-    ## Event 8.1 Chile
-#     saverParams.tw.prephasevalue = 30 * SECOND
-#     saverParams.tw.postphasevalue = 25 * MINUTE
-#     folder = "/home/mbianchi/CHILE-81"
-
-    ## Event 8.1 Chile
-    saverParams.tw.prephasevalue = 45 * SECOND
-    saverParams.tw.postphasevalue = 10 * MINUTE
-    folder = "/home/mbianchi/Work/RF/2012"
-
-    # Start the process !
-    dl = Downloader(folder, replacetree = True, resume = False, fetcher = ftArclink, extracter = [saverA, saverB])
-    if dl.isgood():
-        dl.work(request, saverParams)
