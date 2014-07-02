@@ -49,15 +49,7 @@ class AreaRange(object):
     def good(self, x, y):
         return self.x.good(x) and self.y.good(y)
 
-class RequestBuilder(object):
-    def __init__(self, server):
-        if isinstance(server, str):
-            self.client = fClient(server)
-        elif isinstance(server, fClient):
-            self.client = server
-        else:
-            raise BadParameter("Invalid server object, expected String address of fdsnClient Class")
-
+class BaseBuilder(object):
     '''
     Generic Methods that can be used in FDSN or ARCLINK modes
     '''
@@ -211,6 +203,24 @@ class RequestBuilder(object):
             pass
 
         return kwargs
+
+    def show_request(self, request):
+        for key in request:
+            print key
+            for line in request[key]:
+                print " %s - %s\n %s %s\n %s\n %s\n %s\n %s\n" % line
+                print ""
+            print ""
+        return
+
+class RequestBuilder(BaseBuilder):
+    def __init__(self, server):
+        if isinstance(server, str):
+            self.client = fClient(server)
+        elif isinstance(server, fClient):
+            self.client = server
+        else:
+            raise BadParameter("Invalid server object, expected String address of fdsnClient Class")
 
     '''
     FDSN specific Methods
@@ -441,15 +451,6 @@ class RequestBuilder(object):
         request = self.__organize_by_event(lines)
 
         return request
-
-    def show_request(self, request):
-        for key in request:
-            print key
-            for line in request[key]:
-                print " %s - %s\n %s %s\n %s\n %s\n %s\n %s\n" % line
-                print ""
-            print ""
-        return
 
 
 if __name__ == "__main__":
