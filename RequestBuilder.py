@@ -59,6 +59,16 @@ class BaseBuilder(object):
     Generic Methods that can be used in FDSN or ARCLINK modes
     '''
 
+    def getOrigin(self, event):
+        origin = event.preferred_origin()
+
+        if origin == None:
+            if len(event.origins) == 1:
+                return event.origins[0]
+            raise NextItem("Bad origin for event.")
+
+        return origin
+
     def resolve_phasenames(self, value):
         list = []
 
@@ -343,7 +353,7 @@ class RequestBuilder(BaseBuilder):
                     distanceRange = None):
 
         (phasename, phaselist) = self.resolve_phasenames(phasesOrPhaseGroup)
-        print "Searching using: %s %s" % (phasename, phaselist)
+        print >>sys.stderr,"Searching using: %s %s" % (phasename, phaselist)
 
         # List of request lines
         lines = []
@@ -365,14 +375,21 @@ class RequestBuilder(BaseBuilder):
             kwargsstation['net'] = net
             kwargsstation['sta'] = sta
 
-            print >>sys.stderr,"Searching stations for pattern: %s.%s" % (net,sta)
-            inventory = self.client.get_stations(**kwargsstation)
+            try:
+                inventory = self.client.get_stations(**kwargsstation)
+            except:
+                inventory = None
+
+            if inventory is None or len(inventory.networks) == 0:
+                print >>sys.stderr,"No stations for pattern: %s.%s" % (net, sta)
+                continue
 
             # On networks found
+            print >>sys.stderr,"Stations for pattern: %s.%s" % (net,sta)
             for network in inventory.networks:
                 # On Stations found
                 for station in network.stations:
-                    print >>sys.stderr,"Working on station %s.%s" % (network.code, station.code)
+                    print >>sys.stderr,"\n Working on station %s.%s" % (network.code, station.code)
 
                     # Start Build the parameters to pass on the Event Client
                     kwargsevent = self.fill_kwargsevent(max([station.start_date, t0]),
@@ -387,21 +404,18 @@ class RequestBuilder(BaseBuilder):
                     try:
                         events = self.client.get_events(**kwargsevent)
                     except FDSNException,e:
-                        print >>sys.stderr," No events found compatible with station %s.%s" % (network.code,station.code)
-                        continue
+                        events = None
 
                     # Event loop
-                    if len(events) < 0:
-                        print >>sys.stderr," No Events Found."
-                        continue 
+                    if events is None or len(events) < 0:
+                        print >>sys.stderr,"  No Events Found."
+                        continue
 
                     for event in events:
                         try:
-                            origin = event.preferred_origin()
-                            if origin is None: 
-                                raise NextItem("Bad origin for event.")
+                            origin = self.getOrigin(event)
 
-                            print >>sys.stderr,"Working on origin: %s" % str(origin.time)
+                            print >>sys.stderr,"  Working on origin: %s" % str(origin.time),
 
                             delta = util.locations2degrees(station.latitude,
                                                            station.longitude,
@@ -425,8 +439,10 @@ class RequestBuilder(BaseBuilder):
                                       EI,
                                       PI)
                                      )
+                            print >>sys.stderr,"OK!"
                         except NextItem,e:
-                            print >>sys.stderr," Skipping: %s" % str(e)
+                            print >>sys.stderr,"  Skipping: %s" % str(e)
+                            continue
 
         request = self.organize_by_station(lines)
 
@@ -459,14 +475,12 @@ class RequestBuilder(BaseBuilder):
             events = self.client.get_events(**kwargsevent)
             print >>sys.stderr,"Found %d events." % len(events)
         except FDSNException:
-            print >>sys.stderr,"\nNo events found for the given parameters.\n"
+            print >>sys.stderr,"No events found for the given parameters."
             return None
 
         for event in events:
-            origin = event.preferred_origin()
-            if origin is None:
-                print >>sys.stderr,"Bad origin for event %s" % event
-                continue
+            print >>sys.stderr,""
+            origin = self.getOrigin(event)
 
             print >>sys.stderr,"Working on origin: %s" % str(origin.time)
 
@@ -481,44 +495,49 @@ class RequestBuilder(BaseBuilder):
                 (net, sta) = code.split(".")
                 kwargsstation['net'] = net
                 kwargsstation['sta'] = sta
-                print >>sys.stderr,"Searching stations for pattern: %s.%s" % (net,sta)
 
-                inventory = self.client.get_stations(**kwargsstation)
+                try:
+                    inventory = self.client.get_stations(**kwargsstation)
+                except FDSNException,e:
+                    inventory = None
 
+                if inventory is None or len(inventory.networks) == 0:
+                    print >>sys.stderr,"\n No stations for pattern: %s.%s" % (net, sta)
+                    continue
+
+                print >>sys.stderr,"\n Stations for pattern: %s.%s" % (net,sta)
                 # Event loop
-                if inventory is not None and len(inventory.networks) > 0:
-                    for network in inventory.networks:
-                        for station in network.stations:
-                            try:
-                                print >>sys.stderr,"Working on station %s.%s" % (network.code, station.code)
+                for network in inventory.networks:
+                    for station in network.stations:
+                        try:
+                            print >>sys.stderr,"  Working on station %s.%s " % (network.code, station.code),
 
-                                delta = util.locations2degrees(station.latitude,
-                                                               station.longitude,
-                                                               origin.latitude,
-                                                               origin.longitude)
+                            delta = util.locations2degrees(station.latitude,
+                                                           station.longitude,
+                                                           origin.latitude,
+                                                           origin.longitude)
 
-                                (ta, slowness) = self.find_arrivalTime(origin.time, delta, origin.depth, phaselist)
+                            (ta, slowness) = self.find_arrivalTime(origin.time, delta, origin.depth, phaselist)
 
-                                (z,n,e) = self.__getFDSNChannelList(station, ta, targetSamplingRate, allowedGainCodes)
-    
-                                EI = self.build_event_dictionary(origin.time, origin.latitude, origin.longitude, origin.depth)
-                                SI = self.build_station_dictionary(network.code, station.code, station.latitude, station.longitude, station.elevation)
-                                PI = self.build_pick_dictionary(phasename, ta, slowness)
+                            (z,n,e) = self.__getFDSNChannelList(station, ta, targetSamplingRate, allowedGainCodes)
 
-                                lines.append((ta + timeRange.min(),
-                                              ta + timeRange.max(),
-                                              network.code,
-                                              station.code,
-                                              [z,n,e],
-                                              SI,
-                                              EI,
-                                              PI
-                                             )
-                                )
-                            except NextItem, e:
-                                print >>sys.stderr," Skipping: %s" % str(e)
-                else:
-                    print >>sys.stderr,"No Stations Found"
+                            EI = self.build_event_dictionary(origin.time, origin.latitude, origin.longitude, origin.depth)
+                            SI = self.build_station_dictionary(network.code, station.code, station.latitude, station.longitude, station.elevation)
+                            PI = self.build_pick_dictionary(phasename, ta, slowness)
+
+                            lines.append((ta + timeRange.min(),
+                                          ta + timeRange.max(),
+                                          network.code,
+                                          station.code,
+                                          [z,n,e],
+                                          SI,
+                                          EI,
+                                          PI
+                                         )
+                            )
+                            print >>sys.stderr,"OK!"
+                        except NextItem, e:
+                            print >>sys.stderr,"\n  Skipping: %s" % str(e)
 
         request = self.organize_by_event(lines)
 
@@ -547,8 +566,7 @@ if __name__ == "__main__":
                     depthRange = Range(0.0, 400.0),
                     distanceRange = None
                     )
- 
-    rb.save_request("request.pik", req)
 
-    rb.show_request(req)
+#     rb.save_request("request.pik", req)
+#     rb.show_request(req)
 
