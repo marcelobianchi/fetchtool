@@ -5,6 +5,8 @@ from obspy.core.utcdatetime import UTCDateTime
 from obspy.core import util
 from obspy import taup
 from obspy.fdsn.header import FDSNException
+import pickle
+import os
 
 class NextItem(Exception):
     pass
@@ -236,6 +238,30 @@ class BaseBuilder(object):
                 print ""
             print ""
         return
+
+    def load_request(self, filename):
+        if filename is None or not os.path.isfile(filename):
+            raise Exception("Cannot read file, %s" % filename)
+
+        try:
+            iofile = file("request.pik", "r")
+            request = pickle.load(iofile)
+            iofile.close()
+        except:
+            request = None
+
+        return request
+
+    def save_request(self, filename, request):
+        if filename is None or os.path.isfile(filename):
+            raise Exception("Will not overwrite file, %s" % filename)
+
+        if request is None: 
+            raise Exception("Request cannot be empty")
+
+        iofile = file(filename, "w")
+        pickle.dump(request, iofile)
+        iofile.close()
 
 class RequestBuilder(BaseBuilder):
     def __init__(self, server):
@@ -503,6 +529,8 @@ if __name__ == "__main__":
     # Get an Instance of the class
     rb = RequestBuilder("IRIS")
 
+#     req = rb.load_request("request.pik")
+
     # Call the stationBased
     req = rb.eventBased(t0 = UTCDateTime("2007-01-01"),
                     t1 = UTCDateTime("2008-01-01"),
@@ -510,15 +538,17 @@ if __name__ == "__main__":
                     allowedGainCodes = ["H", "L"],
                     timeRange = Range(-120, 600),
                     phasesOrPhaseGroup = "pgroup",
-
+ 
                     networkStationCodes = [ "TA.A*"],
                     stationRestrictionArea = AreaRange(-150.0, -90.0, 15.0, 60.0),
-
+ 
                     eventRestrictionArea = AreaRange(-35.0, -10.0, -55.0, -60.0),
                     magnitudeRange = Range(6.2, 9.0),
                     depthRange = Range(0.0, 400.0),
                     distanceRange = None
                     )
-    rb.show_request(req)
+ 
+    rb.save_request("request.pik", req)
 
+    rb.show_request(req)
 
