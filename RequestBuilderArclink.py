@@ -1,6 +1,8 @@
 ## Python Basics
 import sys, pickle
 
+from RequestBuilder import BaseBuilder, Range, AreaRange
+
 ## Obspy tools
 from obspy.core import UTCDateTime, util, AttribDict, read as oREAD, Stream
 from obspy import fdsn, taup, arclink, sh
@@ -33,26 +35,15 @@ def unWrapNSLC(objs, archive = None, onlyShared = False):
             clist.append((code, start, obj))
     return clist
 
-class ArcLinkRequestBuilder(object):
-    def __init__(self, t0, t1, stationselectors = [ ]):
-        self.am = ArclinkManager("seismaster.iag.usp.br:18001", "m.bianchi@iag.usp.br")
-        self.fc = fdsn.Client("IRIS")
+class ArcLinkRequestBuilder(BaseBuilder):
+    def __init__(self, fdsnURL, arclinkURL):
+        (host,port,user) = arclinkURL.strip().split(":")
+        self._am = ArclinkManager("%s:%s" % (host,port), user)
+        self._fc = fdsn.Client(fdsnURL)
 
-        if isinstance(t0, UTCDateTime):
-            self.t0 = t0
-        else:
-            UTCDateTime(t0)
-
-        if isinstance(t1, UTCDateTime):
-            self.t1 = t1
-        else:
-            UTCDateTime(t1)
-
-        self.selectors = stationselectors
-
-        # Load inventory
-        self.inventory = self._loadInventory()
-
+    '''
+    To clean methods
+    '''
     def _loadInventory(self):
         print >>sys.stderr,"Loading Complete Inventory ..."
         inv = self.am.get_inventory("*", "*", "*", "*", t0.datetime, t1.datetime)
@@ -76,20 +67,7 @@ class ArcLinkRequestBuilder(object):
                 else:
                     net.remove_station(scode, sstart)
 
-    def _events(self, station, parameters):
-        try:
-            catalog = self.fc.get_events(starttime = self.t0,
-                                    endtime = self.t1,
-                                    latitude = station.latitude,
-                                    longitude = station.longitude,
-                                    minradius = parameters.minradius,
-                                    maxradius = parameters.maxradius,
-                                    minmagnitude = parameters.minmagnitude)
-        except fdsn.header.FDSNException:
-            return None
-        return catalog
-
-    def _choose(self, item, location, channel, targetsps, instcode):
+    def __ArclinkChoose(self, item, location, channel, targetsps, instcode):
 
         newccode = channel.code
         newsps = (channel.sampleRateNumerator / channel.sampleRateDenominator)
@@ -116,7 +94,7 @@ class ArcLinkRequestBuilder(object):
 
         return item
 
-    def _getChannelList(self, station, tp, targetsps, instcode):
+    def __getArclinkChannelList(self, station, tp, targetsps, instcode):
         clist = [ ]
 
         z = (None, None, None)
@@ -182,7 +160,7 @@ class ArcLinkRequestBuilder(object):
         parameters['minmagnitude'] = 5.5
         return parameters
 
-    def stationBased(self, parameters):
+    def OLDstationBased(self, parameters):
         request = {}
 
         print >>sys.stderr,"StationBuilder:"
@@ -235,3 +213,76 @@ class ArcLinkRequestBuilder(object):
         print >>sys.stderr,"StationBuilder is ready.\n"
         ## { STKEY: (T0,T1,N,S,[(LO,C)],At-Station, At-Event, At-Pick) }
         return request
+
+    '''
+    New Methods
+    '''
+    def eventBased(self, t0, t1, targetSamplingRate, allowedGainCodes, timeRange,
+                   eventRestrictionArea,
+                   magnitudeRange,
+                   depthRange,
+
+                   networkStationCodes = None,
+                   stationRestrictionArea = None,
+                   distanceRange = None
+                   ):
+
+        # List of request lines
+        lines = []
+
+        kwargsevent = self.fill_kwargsevent(t0, t1,
+                                              eventRestrictionArea,
+                                              magnitudeRange,
+                                              depthRange,
+                                              None, None, None)
+
+        try:
+            events = self._fc.get_events(**kwargsevent)
+            events.plot()
+            print >>sys.stderr,"Found %d events." % len(events)
+        except fdsn.header.FDSNException:
+            print >>sys.stderr,"\nNo events found for the given parameters.\n"
+            sys.exit()
+
+        for event in events:
+            origin = event.preferred_origin()
+            if origin is None:
+                print >>sys.stderr,"Bad origin."
+                continue
+
+        return
+
+    def stationBased(self, t0, t1, targetSamplingRate, allowedGainCodes, timeRange,
+                    networkStationCodes,
+                    stationRestrictionArea,
+
+                    eventRestrictionArea = None,
+                    magnitudeRange = None,
+                    depthRange = None,
+                    distanceRange = None):
+
+        # List of request lines
+        lines = []
+        return
+
+if __name__ == "__main__":
+    # Get an Instance of the class
+    rb = ArcLinkRequestBuilder("IRIS","seisrequest.iag.usp.br:18001:m.bianchi@iag.usp.br")
+
+    # Call the stationBased
+    req = rb.eventBased(t0 = UTCDateTime("2007-01-01"),
+                    t1 = UTCDateTime("2008-01-01"),
+                    targetSamplingRate = 20.0,
+                    allowedGainCodes = ["H", "L"],
+                    timeRange = Range(-120, 600),
+
+                    networkStationCodes = [ "TA.*"],
+                    stationRestrictionArea = AreaRange(-150.0, -90.0, 15.0, 60.0),
+
+                    eventRestrictionArea = AreaRange(-35.0, -10.0, -55.0, -60.0),
+                    magnitudeRange = Range(6.2, 9.0),
+                    depthRange = Range(0.0, 400.0),
+                    distanceRange = None
+                    )
+
+

@@ -54,7 +54,7 @@ class BaseBuilder(object):
     Generic Methods that can be used in FDSN or ARCLINK modes
     '''
 
-    def __find_arrivalTime(self, t0, delta, depth, phase = ["P", "Pn", "Pdiff", "PKP", "PKiKP", "PKPab", "PKPbc", "PKPdf", "PKPdiff"]):
+    def find_arrivalTime(self, t0, delta, depth, phase = ["P", "Pn", "Pdiff", "PKP", "PKiKP", "PKPab", "PKPbc", "PKPdf", "PKPdiff"]):
         '''
             delta is in degrees
             depth is in meters
@@ -69,7 +69,7 @@ class BaseBuilder(object):
         slowness = seltimes[0]['dT/dD']
         return (t0 + time, slowness)
 
-    def __build_event_dictionary(self, t0, originLatitude, originLongitude, originDepth):
+    def build_event_dictionary(self, t0, originLatitude, originLongitude, originDepth):
         '''
             t0 is a UTCDateTime
             eventLatitude is degrees
@@ -85,7 +85,7 @@ class BaseBuilder(object):
                      }
         return AttribDict(eventinfo)
 
-    def __build_station_dictionary(self, networkCode, stationCode, stationLatitude, stationLongitude, stationElevation):
+    def build_station_dictionary(self, networkCode, stationCode, stationLatitude, stationLongitude, stationElevation):
         '''
             networkCode is String
             stationCode is String
@@ -101,7 +101,7 @@ class BaseBuilder(object):
                    }
         return AttribDict(stationinfo)
 
-    def __build_pick_dictionary(self, phase, time, slowness):
+    def build_pick_dictionary(self, phase, time, slowness):
         pickinfo = {
                     'phase': phase,
                     'time': time,
@@ -109,7 +109,7 @@ class BaseBuilder(object):
                     }
         return AttribDict(pickinfo)
 
-    def __organize_by_station(self, lines):
+    def organize_by_station(self, lines):
         request = {}
 
         for line in lines:
@@ -123,7 +123,7 @@ class BaseBuilder(object):
 
         return request
 
-    def __organize_by_event(self, lines):
+    def organize_by_event(self, lines):
         request= {}
 
         for line in lines:
@@ -137,7 +137,7 @@ class BaseBuilder(object):
 
         return request
 
-    def __fill_kwargsstation(self, t0, t1,
+    def fill_kwargsstation(self, t0, t1,
                              stationRestrictionArea,
                              latitude, longitude, distanceRange):
 
@@ -167,7 +167,7 @@ class BaseBuilder(object):
 
         return kwargs
 
-    def __fill_kwargsevent(self, t0, t1,
+    def fill_kwargsevent(self, t0, t1,
                    eventRestrictionArea,
                    magnitudeRange,
                    depthRange,
@@ -293,7 +293,7 @@ class RequestBuilder(BaseBuilder):
         lines = []
 
         # Start Build the parameters to pass on to the Client
-        kwargsstation = self.__fill_kwargsstation(t0,
+        kwargsstation = self.fill_kwargsstation(t0,
                                                   t1,
                                                   stationRestrictionArea,
                                                   None, None, None)
@@ -315,7 +315,7 @@ class RequestBuilder(BaseBuilder):
                 # On Stations found
                 for station in network.stations:
                     # Start Build the parameters to pass on the Event Client
-                    kwargsevent = self.__fill_kwargsevent(max([station.start_date, t0]),
+                    kwargsevent = self.fill_kwargsevent(max([station.start_date, t0]),
                                                           min([station.end_date, t1]),
                                                           eventRestrictionArea,
                                                           magnitudeRange,
@@ -345,12 +345,12 @@ class RequestBuilder(BaseBuilder):
                                                            station.longitude,
                                                            origin.latitude,
                                                            origin.longitude)
-                            (ta, slowness) = self.__find_arrivalTime(origin.time, delta, origin.depth)
-                            (z,n,e) = self.__getFDSNChannelList(station, ta, targetSamplingRate, allowedGainCodes)
+                            (ta, slowness) = self.find_arrivalTime(origin.time, delta, origin.depth)
+                            (z,n,e) = self.getFDSNChannelList(station, ta, targetSamplingRate, allowedGainCodes)
 
-                            EI = self.__build_event_dictionary(origin.time, origin.latitude, origin.longitude, origin.depth)
-                            SI = self.__build_station_dictionary(network.code, station.code, station.latitude, station.longitude, station.elevation)
-                            PI = self.__build_pick_dictionary("P", ta, slowness)
+                            EI = self.build_event_dictionary(origin.time, origin.latitude, origin.longitude, origin.depth)
+                            SI = self.build_station_dictionary(network.code, station.code, station.latitude, station.longitude, station.elevation)
+                            PI = self.build_pick_dictionary("P", ta, slowness)
                             
                             lines.append((ta + timeRange.min(),
                                           ta + timeRange.max(),
@@ -364,7 +364,7 @@ class RequestBuilder(BaseBuilder):
                     else:
                         print >>sys.stderr,"No Events Found"
 
-        request = self.__organize_by_station(lines)
+        request = self.organize_by_station(lines)
 
         return request
 
@@ -380,7 +380,7 @@ class RequestBuilder(BaseBuilder):
         lines = []
 
 
-        kwargsevent = self.__fill_kwargsevent(t0, t1,
+        kwargsevent = self.fill_kwargsevent(t0, t1,
                                               eventRestrictionArea,
                                               magnitudeRange,
                                               depthRange,
@@ -400,7 +400,7 @@ class RequestBuilder(BaseBuilder):
                 print >>sys.stderr,"Bad origin."
                 continue
 
-            kwargsstation = self.__fill_kwargsstation((origin.time - 86400),
+            kwargsstation = self.fill_kwargsstation((origin.time - 86400),
                                                       (origin.time + 86400),
                                                       stationRestrictionArea,
                                                       origin.latitude,
@@ -424,12 +424,12 @@ class RequestBuilder(BaseBuilder):
                                                            station.longitude,
                                                            origin.latitude,
                                                            origin.longitude)
-                                (ta, slowness) = self.__find_arrivalTime(origin.time, delta, origin.depth)
-                                (z,n,e) = self.__getFDSNChannelList(station, ta, targetSamplingRate, allowedGainCodes)
+                                (ta, slowness) = self.find_arrivalTime(origin.time, delta, origin.depth)
+                                (z,n,e) = self.getFDSNChannelList(station, ta, targetSamplingRate, allowedGainCodes)
         
-                                EI = self.__build_event_dictionary(origin.time, origin.latitude, origin.longitude, origin.depth)
-                                SI = self.__build_station_dictionary(network.code, station.code, station.latitude, station.longitude, station.elevation)
-                                PI = self.__build_pick_dictionary("P", ta, slowness)
+                                EI = self.build_event_dictionary(origin.time, origin.latitude, origin.longitude, origin.depth)
+                                SI = self.build_station_dictionary(network.code, station.code, station.latitude, station.longitude, station.elevation)
+                                PI = self.build_pick_dictionary("P", ta, slowness)
         
                                 lines.append((ta + timeRange.min(),
                                           ta + timeRange.max(),
@@ -448,7 +448,7 @@ class RequestBuilder(BaseBuilder):
                 print >>sys.stderr, "Erro, sem estacao especificada use *.* para pedir tudo."
                 sys.exit()
 
-        request = self.__organize_by_event(lines)
+        request = self.organize_by_event(lines)
 
         return request
 
