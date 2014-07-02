@@ -276,9 +276,9 @@ class BaseBuilder(object):
 class RequestBuilder(BaseBuilder):
     def __init__(self, server):
         if isinstance(server, str):
-            self.client = fClient(server)
+            self.fdsn_client = fClient(server)
         elif isinstance(server, fClient):
-            self.client = server
+            self.fdsn_client = server
         else:
             raise BadParameter("Invalid server object, expected String address of fdsnClient Class")
 
@@ -376,7 +376,7 @@ class RequestBuilder(BaseBuilder):
             kwargsstation['sta'] = sta
 
             try:
-                inventory = self.client.get_stations(**kwargsstation)
+                inventory = self.fdsn_client.get_stations(**kwargsstation)
             except:
                 inventory = None
 
@@ -402,7 +402,7 @@ class RequestBuilder(BaseBuilder):
                                                           distanceRange)
 
                     try:
-                        events = self.client.get_events(**kwargsevent)
+                        events = self.fdsn_client.get_events(**kwargsevent)
                     except FDSNException,e:
                         events = None
 
@@ -457,6 +457,7 @@ class RequestBuilder(BaseBuilder):
                    stationRestrictionArea = None,
                    distanceRange = None
                    ):
+
         lines = []
 
         (phasename, phaselist) = self.resolve_phasenames(phasesOrPhaseGroup)
@@ -472,12 +473,13 @@ class RequestBuilder(BaseBuilder):
                                               None, None, None)
 
         try:
-            events = self.client.get_events(**kwargsevent)
+            events = self.fdsn_client.get_events(**kwargsevent)
             print >>sys.stderr,"Found %d events." % len(events)
         except FDSNException:
             print >>sys.stderr,"No events found for the given parameters."
             return None
 
+        # Event loop
         for event in events:
             print >>sys.stderr,""
             origin = self.getOrigin(event)
@@ -497,7 +499,7 @@ class RequestBuilder(BaseBuilder):
                 kwargsstation['sta'] = sta
 
                 try:
-                    inventory = self.client.get_stations(**kwargsstation)
+                    inventory = self.fdsn_client.get_stations(**kwargsstation)
                 except FDSNException,e:
                     inventory = None
 
@@ -552,20 +554,20 @@ if __name__ == "__main__":
 
     # Call the stationBased
     req = rb.eventBased(t0 = UTCDateTime("2007-01-01"),
-                    t1 = UTCDateTime("2008-01-01"),
-                    targetSamplingRate = 20.0,
-                    allowedGainCodes = ["H", "L"],
-                    timeRange = Range(-120, 600),
-                    phasesOrPhaseGroup = "pgroup",
- 
-                    networkStationCodes = [ "TA.A*"],
-                    stationRestrictionArea = AreaRange(-150.0, -90.0, 15.0, 60.0),
- 
-                    eventRestrictionArea = AreaRange(-35.0, -10.0, -55.0, -60.0),
-                    magnitudeRange = Range(6.2, 9.0),
-                    depthRange = Range(0.0, 400.0),
-                    distanceRange = None
-                    )
+                        t1 = UTCDateTime("2008-01-01"),
+                        targetSamplingRate = 20.0,
+                        allowedGainCodes = ["H", "L"],
+                        timeRange = Range(-120, 600),
+                        phasesOrPhaseGroup = "pgroup",
+
+                        networkStationCodes = [ "TA.A*"],
+                        stationRestrictionArea = AreaRange(-150.0, -90.0, 15.0, 60.0),
+
+                        eventRestrictionArea = AreaRange(-35.0, -10.0, -55.0, -60.0),
+                        magnitudeRange = Range(6.2, 9.0),
+                        depthRange = Range(0.0, 400.0),
+                        distanceRange = None
+                        )
 
 #     rb.save_request("request.pik", req)
 #     rb.show_request(req)
