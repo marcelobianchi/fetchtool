@@ -137,6 +137,7 @@ class Downloader(object):
         self._basedir = None
         self._show_resume = resume
         self._force = replacetree
+        self.__saveraw= False
 
         if fetcher is not None and not isinstance(fetcher, BaseFetcher):
             raise Exception("Supplied fetcher %s is not a Fetcher." % str(fetcher))
@@ -200,6 +201,9 @@ class Downloader(object):
 
         return (removed, created)
 
+    def enableSaveRaw(self):
+        self.__saveraw = True
+
     def work(self, requests):
 
         print >>sys.stderr,"\n\nWorking on %d requests" % len(requests)
@@ -222,6 +226,9 @@ class Downloader(object):
                 data = self._fetcher.work(key, request)
                 if data == None or len(data) == 0:
                     print >>sys.stderr,"  No Data for Node %s" % key
+
+                if self.__saveraw:
+                    data.write("%s.mseed" % key, "MSEED")
 
                 if data and self._extracter:
                     for extracter in self._extracter:

@@ -284,7 +284,12 @@ class SacSaver(Saver):
             trace.stats.sac['evlo'] = evp.longitude
             trace.stats.sac['evdp'] = evp.depth
             trace.stats.sac['kevnm'] = evp.eventId
-#             trace.stats.sac['mag'] = None
+
+            try:
+                if evp.magnitude is not None:
+                    trace.stats.sac['mag'] = evp.magnitude
+            except KeyError,e:
+                print >>sys.stderr,"No magnitude vlaue (%s)." % e
 
             # Selection phase
             trace.stats.sac['a'] = phase.time - trace.stats.starttime

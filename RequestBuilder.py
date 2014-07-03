@@ -85,7 +85,7 @@ class BaseBuilder(object):
     def getChannelList(self, station, t0, targetsps, instcode):
         raise Exception("Implement your own override !")
 
-    def build(self, lines, network, station, origin, phaselist, phasename, targetSamplingRate, allowedGainCodes, timeRange):
+    def build(self, lines, network, station, origin, magnitude, phaselist, phasename, targetSamplingRate, allowedGainCodes, timeRange):
         delta = util.locations2degrees(station.latitude,
                                        station.longitude,
                                        origin.latitude,
@@ -96,7 +96,7 @@ class BaseBuilder(object):
         # This method is overriden in each implementation
         (z,n,e) = self.getChannelList(station, ta, targetSamplingRate, allowedGainCodes)
 
-        EI = self.__build_event_dictionary(origin.time, origin.latitude, origin.longitude, origin.depth)
+        EI = self.__build_event_dictionary(origin.time, origin.latitude, origin.longitude, origin.depth, magnitude.mag)
         SI = self.__build_station_dictionary(network.code, station.code, station.latitude, station.longitude, station.elevation)
         PI = self.__build_pick_dictionary(phasename, ta, slowness)
 
@@ -114,13 +114,14 @@ class BaseBuilder(object):
 
     def getOrigin(self, event):
         origin = event.preferred_origin()
+        magnitude = event.preferred_magnitude()
 
         if origin == None:
             if len(event.origins) == 1:
                 return event.origins[0]
             raise NextItem("Bad origin for event.")
 
-        return origin
+        return (origin, magnitude)
 
     def resolve_phasenames(self, value):
         plist = []
@@ -158,7 +159,7 @@ class BaseBuilder(object):
         slowness = seltimes[0]['dT/dD']
         return (t0 + time, slowness)
 
-    def __build_event_dictionary(self, t0, originLatitude, originLongitude, originDepth):
+    def __build_event_dictionary(self, t0, originLatitude, originLongitude, originDepth, eventMagnitude):
         '''
             t0 is a UTCDateTime
             eventLatitude is degrees
@@ -170,7 +171,8 @@ class BaseBuilder(object):
                      'time': t0,
                      'latitude': originLatitude,
                      'longitude': originLongitude,
-                     'depth': originDepth / 1000.0
+                     'depth': originDepth / 1000.0,
+                     'magnitude': eventMagnitude
                      }
         return AttribDict(eventinfo)
 
@@ -431,7 +433,7 @@ class ArcLinkRequestBuilder(BaseBuilder):
         # Event loop
         for event in events:
             try:
-                origin = self.getOrigin(event)
+                (origin, magnitude) = self.getOrigin(event)
             except NextItem,e:
                 print >>sys.stderr,"Skipping Origin: %s" % str(e)
                 continue
@@ -453,7 +455,7 @@ class ArcLinkRequestBuilder(BaseBuilder):
                         try:
                             print >>sys.stderr,"  Working on station %s.%s " % (network.code, station.code),
                             self.build(lines,
-                                         network, station, origin,
+                                         network, station, origin, magnitude,
                                          phaselist, phasename,
                                          targetSamplingRate, allowedGainCodes, timeRange)
                             print >>sys.stderr,"OK!"
@@ -519,10 +521,10 @@ class ArcLinkRequestBuilder(BaseBuilder):
                     # Event loop
                     for event in events:
                         try:
-                            origin = self.getOrigin(event)
+                            (origin, magnitude) = self.getOrigin(event)
                             print >>sys.stderr,"  Working on origin: %s" % str(origin.time),
                             self.build(lines,
-                                       network, station, origin,
+                                       network, station, origin, magnitude,
                                        phaselist, phasename,
                                        targetSamplingRate, allowedGainCodes, timeRange)
                             print >>sys.stderr,"OK!"
@@ -674,11 +676,11 @@ class RequestBuilder(BaseBuilder):
 
                     for event in events:
                         try:
-                            origin = self.getOrigin(event)
+                            (origin, magnitude) = self.getOrigin(event)
 
                             print >>sys.stderr,"  Working on origin: %s" % str(origin.time),
                             self.build(lines,
-                                       network, station, origin,
+                                       network, station, origin, magnitude,
                                        phaselist, phasename,
                                        targetSamplingRate, allowedGainCodes, timeRange)
                             print >>sys.stderr,"OK!"
@@ -724,7 +726,7 @@ class RequestBuilder(BaseBuilder):
         # Event loop
         for event in events:
             try:
-                origin = self.getOrigin(event)
+               (origin, magnitude) = self.getOrigin(event)
             except NextItem,e:
                 print >>sys.stderr,"Skipping Origin: %s" % str(e)
                 continue
@@ -759,7 +761,7 @@ class RequestBuilder(BaseBuilder):
                         try:
                             print >>sys.stderr,"  Working on station %s.%s " % (network.code, station.code),
                             self.build(lines,
-                                       network, station, origin,
+                                       network, station, origin, magnitude,
                                        phaselist, phasename,
                                        targetSamplingRate, allowedGainCodes, timeRange)
                             print >>sys.stderr,"OK!"
