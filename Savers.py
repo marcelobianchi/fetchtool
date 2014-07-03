@@ -248,6 +248,12 @@ class QSaver(Saver):
             trace.stats.sh['DEPTH'] = evp.depth
             trace.stats.sh['COMMENT'] = evp.eventId
 
+            try:
+                if evp.magnitude is not None:
+                        trace.stats.sh['MAGNITUDE'] = evp.magnitude
+            except KeyError,e:
+                print >>sys.stderr,"No magnitude vlaue (%s)." % e
+
             trace.stats.sh['P-ONSET'] = phase.time
 
     def _fix_station_headers(self, stream, request):
