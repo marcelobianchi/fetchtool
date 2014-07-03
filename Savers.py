@@ -14,6 +14,7 @@ HEAR = 365 * DAY
 class Saver(object):
     def __init__(self, debug = False):
         self._debug = debug
+        self.parameters = self.__initParameters()
 
     def _cleanids(self, reason, stream, ids):
         '''Remove from the stream the traces that have no evid tag
@@ -121,25 +122,25 @@ class Saver(object):
         # Clean-up
         self._cleanids("3C-", stream, ids_to_remove)
 
-    def _check_minimun_window_size(self, stream, request, parameters):
-        if not parameters.tw.prephasevalue and not parameters.tw.postphasevalue: return
+    def _check_minimun_window_size(self, stream, request):
+        if not self.parameters.tw.prephasevalue and not self.parameters.tw.postphasevalue: return
 
         # Search for bad IDS
         for trace in stream:
             ts = trace.stats.starttime
             te = trace.stats.endtime
             pt = request[trace._f_linecount][7]['time']
-            if (pt - ts) < parameters.tw.prephasevalue:
+            if (pt - ts) < self.parameters.tw.prephasevalue:
                 del trace._f_evid
                 continue
-            if (te - pt) < parameters.tw.postphasevalue:
+            if (te - pt) < self.parameters.tw.postphasevalue:
                 del trace._f_evid
                 continue
 
         # Clean up bad IDS
         self._cleanids("Minimun Window", stream, [])
 
-    def _ensure_minimun_rms(self, stream, request, parameters):
+    def _ensure_minimun_rms(self, stream, request):
         pass
 
     def _fix_event_headers(self, stream, request):
@@ -151,24 +152,30 @@ class Saver(object):
     def _extract(self, folder, key, request, stream):
         raise Exception("Base Class Saver -- Not implemented")
 
-    def getDefaultParameters(self):
-         # TimeWindow
+    def enableTimeWindowCheck(self,prephase, postphase):
+        self.parameters.tw.prephasevalue = prephase
+        self.parameters.tw.postphasevalue = postphase
+
+    def enablermscheck(self,f1,f2,ratio):
+        raise Exception("Not Implemented")
+
+    def __initParameters(self):
         parameters = AttribDict({})
+
+         # TimeWindow
         parameters.tw = AttribDict({})
-        parameters.tw.prephasevalue = 1 * MINUTE
-        parameters.tw.postphasevalue = 10 * MINUTE
+        parameters.tw.prephasevalue = None
+        parameters.tw.postphasevalue = None
 
         # RMS
         parameters.rms = AttribDict({})
-        parameters.rms.rmsratio = 2.0
-        parameters.rms.prephasevalue = 5
-        parameters.rms.postphasevalue = 25
+        parameters.rms.rmsratio = None
         parameters.rms.freqmin = None
         parameters.rms.freqmax = None
 
         return parameters
 
-    def work(self, folder, key, request, stream, parameters):
+    def work(self, folder, key, request, stream):
         if not os.path.isdir(folder): raise Exception("Invalid folder")
 
         n_initial = len(stream)
@@ -178,11 +185,11 @@ class Saver(object):
         n_associate = len(stream)
 
         # Garantee that all traces has at least ...
-        self._check_minimun_window_size(stream, request, parameters)
+        self._check_minimun_window_size(stream, request)
         n_window = len(stream)
 
         # Garantee that the phase has an RMS of at least ...
-        self._ensure_minimun_rms(stream, request, parameters)
+        self._ensure_minimun_rms(stream, request)
         n_rms = len(stream)
 
         ## THIS IS THE LAST

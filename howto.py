@@ -15,11 +15,11 @@ rb = ArcLinkRequestBuilder("http://www.moho.iag.usp.br", "rsis1.on.br:18001:m.bi
 #                         allowedGainCodes = [ "H", "L" ],
 #                         timeRange = Range(-120.0, 35*60),
 #                         phasesOrPhaseGroup = "pgroup",
-# 
+#  
 #                         eventRestrictionArea = AreaRange(-80, -70, -22, -19),
-#                         magnitudeRange = None,
+#                         magnitudeRange = Range(8.0,9.0),
 #                         depthRange = None,
-# 
+#  
 #                         networkStationCodes = [ "ON.*" ],
 #                         stationRestrictionArea = None,
 #                         distanceRange = None
@@ -31,11 +31,8 @@ request = rb.load_request("req-on.pik")
 rb.show_request(request)
 
 ft = Sc3ArclinkFetcher("rsis1.on.br:18001/m.bianchi@iag.usp.br", allinone = True, merge = False)
-sv = SacSaver(debug = False)
-
-params = sv.getDefaultParameters()
-params.tw.prephasevalue = 60.0
-params.tw.postphasevalue = 600.0
+sv = SacSaver(debug = True)
+sv.enableTimeWindowCheck(-120.0, 35*60.0)
 
 dl = Downloader("/home/mbianchi/ON-CHILE", replacetree = True, resume = True, fetcher = ft, extracter = sv)
-dl.work(request, params)
+dl.work(request)

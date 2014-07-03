@@ -200,7 +200,7 @@ class Downloader(object):
 
         return (removed, created)
 
-    def work(self, requests, extracterparams):
+    def work(self, requests):
 
         print >>sys.stderr,"\n\nWorking on %d requests" % len(requests)
 
@@ -226,5 +226,5 @@ class Downloader(object):
                 if data and self._extracter:
                     for extracter in self._extracter:
                         if extracter is None: continue
-                        result = extracter.work(self._buildfolder(key), key, request, data, extracterparams)
+                        result = extracter.work(self._buildfolder(key), key, request, data)
                         print >>sys.stderr,"  Wrote (In:%d Assoc:%d nWin:%d rms:%d 3c:%d) -- %d files" % result 
