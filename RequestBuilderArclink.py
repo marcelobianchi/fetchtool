@@ -4,22 +4,14 @@ import sys, pickle
 from RequestBuilder import BaseBuilder, Range, AreaRange, NextItem
 
 ## Obspy tools
-from obspy.core import UTCDateTime, util, AttribDict, read as oREAD, Stream
+from obspy.core import UTCDateTime, util, AttribDict
 from obspy import fdsn
+from obspy.station import Station as FDSNStation
 from obspy.fdsn.header import FDSNException
 
 ## Sc3 Tools
-from seiscomp.arclink.manager import ArclinkManager, ArclinkError
-from seiscomp.arclink.client import arclink_status_string
-
-# Defaults Time Constants
-SECOND = 1
-MINUTE = 60*SECOND
-HOUR = 60*MINUTE
-DAY = 24*HOUR
-WEEK = 7 * DAY
-MONTH = 30 * DAY
-HEAR = 365 * DAY
+from seiscomp.arclink.manager import ArclinkManager
+import obspy
 
 def unWrapNSLC(objs, archive = None, onlyShared = False):
     # unwrap lists of lists into arrays of tuples
@@ -42,7 +34,11 @@ class ArcLinkRequestBuilder(BaseBuilder):
         self.arclink_manager = ArclinkManager("%s:%s" % (host,port), user)
         self.fdsn_client = fdsn.Client(fdsnURL)
 
-    def __chooseArcLink(self, item, location, channel, targetsps, instcode):
+    '''
+    ArcLink specific Methods
+    '''
+
+    def __choose(self, item, location, channel, targetsps, instcode):
 
         # Build a newitem for the current channel
         sps = channel.sampleRateNumerator / channel.sampleRateDenominator
@@ -64,7 +60,7 @@ class ArcLinkRequestBuilder(BaseBuilder):
 
         return item
 
-    def __getArcLinkChannelList(self, station, t0, targetsps, instcode):
+    def getChannelList(self, station, t0, targetsps, instcode):
         clist = [ ]
 
         ## Choose will build something like: (loca, chan, sps , az  , dip , dsps)
@@ -78,11 +74,11 @@ class ArcLinkRequestBuilder(BaseBuilder):
                     continue
     
                 if channel.code[-1] == "Z":
-                    z = self.__chooseArcLink(z, location, channel, targetsps, instcode)
+                    z = self.__choose(z, location, channel, targetsps, instcode)
                 elif channel.code[-1] == "N" or channel.code[-1] == "1":
-                    n = self.__chooseArcLink(n, location, channel, targetsps, instcode)
+                    n = self.__choose(n, location, channel, targetsps, instcode)
                 elif channel.code[-1] == "E" or channel.code[-1] == "2":
-                    e = self.__chooseArcLink(e, location, channel, targetsps, instcode)
+                    e = self.__choose(e, location, channel, targetsps, instcode)
     #             else:
     #                 print >>sys.stderr, "Unknow channel %s.%s" % (channel.location_code, channel.code)
 
@@ -96,6 +92,10 @@ class ArcLinkRequestBuilder(BaseBuilder):
 
         return (z,n,e)
 
+    '''
+    Request Builder Methods
+    '''
+
     def eventBased(self, t0, t1, targetSamplingRate, allowedGainCodes, timeRange, phasesOrPhaseGroup,
                    eventRestrictionArea,
                    magnitudeRange,
@@ -106,6 +106,7 @@ class ArcLinkRequestBuilder(BaseBuilder):
                    distanceRange = None
                    ):
 
+        # List of request lines
         lines = []
 
         (phasename, phaselist) = self.resolve_phasenames(phasesOrPhaseGroup)
@@ -129,15 +130,18 @@ class ArcLinkRequestBuilder(BaseBuilder):
 
         # Event loop
         for event in events:
-            print >>sys.stderr,""
-            origin = self.getOrigin(event)
+            try:
+                origin = self.getOrigin(event)
+            except NextItem,e:
+                print >>sys.stderr,"Skipping Origin: %s" % str(e)
+                continue
 
             print >>sys.stderr,"Working on origin: %s" % str(origin.time)
 
             for code in networkStationCodes:
                 (net, sta) = code.split(".")
-
                 inventory = self.arclink_manager.get_inventory(net, sta, "*", "*", (origin.time - 86400).datetime, (origin.time + 86400).datetime)
+
                 if inventory is None or len(inventory.network) == 0:
                     print >>sys.stderr,"No stations for pattern: %s.%s" % (net, sta)
                     continue
@@ -148,30 +152,10 @@ class ArcLinkRequestBuilder(BaseBuilder):
                     for (scode, sstart, station) in  unWrapNSLC(network.station):
                         try:
                             print >>sys.stderr,"  Working on station %s.%s " % (network.code, station.code),
-
-                            delta = util.locations2degrees(station.latitude,
-                                                           station.longitude,
-                                                           origin.latitude,
-                                                           origin.longitude)
-
-                            (ta, slowness) = self.find_arrivalTime(origin.time, delta, origin.depth, phaselist)
-
-                            (z,n,e) = self.__getArcLinkChannelList(station, ta, targetSamplingRate, allowedGainCodes)
-
-                            EI = self.build_event_dictionary(origin.time, origin.latitude, origin.longitude, origin.depth)
-                            SI = self.build_station_dictionary(network.code, station.code, station.latitude, station.longitude, station.elevation)
-                            PI = self.build_pick_dictionary(phasename, ta, slowness)
-
-                            lines.append((ta + timeRange.min(),
-                                          ta + timeRange.max(),
-                                          network.code,
-                                          station.code,
-                                          [z,n,e],
-                                          SI,
-                                          EI,
-                                          PI
-                                         )
-                            )
+                            self.build(lines,
+                                         network, station, origin,
+                                         phaselist, phasename,
+                                         targetSamplingRate, allowedGainCodes, timeRange)
                             print >>sys.stderr,"OK!"
                         except NextItem, e:
                             print >>sys.stderr,"\n  Skipping: %s" % str(e)
@@ -189,11 +173,11 @@ class ArcLinkRequestBuilder(BaseBuilder):
                     depthRange = None,
                     distanceRange = None):
 
-        (phasename, phaselist) = self.resolve_phasenames(phasesOrPhaseGroup)
-        print >>sys.stderr,"Searching using: %s %s" % (phasename, phaselist)
-
         # List of request lines
         lines = []
+
+        (phasename, phaselist) = self.resolve_phasenames(phasesOrPhaseGroup)
+        print >>sys.stderr,"Searching using: %s %s" % (phasename, phaselist)
 
         ## Start the Loop
         # On the given station patterns
@@ -236,31 +220,11 @@ class ArcLinkRequestBuilder(BaseBuilder):
                     for event in events:
                         try:
                             origin = self.getOrigin(event)
-
                             print >>sys.stderr,"  Working on origin: %s" % str(origin.time),
-
-                            delta = util.locations2degrees(station.latitude,
-                                                           station.longitude,
-                                                           origin.latitude,
-                                                           origin.longitude)
-
-                            (ta, slowness) = self.find_arrivalTime(origin.time, delta, origin.depth, phaselist)
-
-                            (z,n,e) = self.__getArcLinkChannelList(station, ta, targetSamplingRate, allowedGainCodes)
-
-                            EI = self.build_event_dictionary(origin.time, origin.latitude, origin.longitude, origin.depth)
-                            SI = self.build_station_dictionary(network.code, station.code, station.latitude, station.longitude, station.elevation)
-                            PI = self.build_pick_dictionary(phasename, ta, slowness)
-
-                            lines.append((ta + timeRange.min(),
-                                      ta + timeRange.max(),
-                                      network.code,
-                                      station.code,
-                                      [z,n,e],
-                                      SI,
-                                      EI,
-                                      PI)
-                                     )
+                            self.build(lines,
+                                       network, station, origin,
+                                       phaselist, phasename,
+                                       targetSamplingRate, allowedGainCodes, timeRange)
                             print >>sys.stderr,"OK!"
                         except NextItem,e:
                             print >>sys.stderr,"  Skipping: %s" % str(e)
@@ -275,20 +239,20 @@ if __name__ == "__main__":
     rb = ArcLinkRequestBuilder("IRIS","seisrequest.iag.usp.br:18001:m.bianchi@iag.usp.br")
 
     # Call the stationBased
-    req = rb.eventBased(t0 = UTCDateTime("2007-01-01"),
-                    t1 = UTCDateTime("2008-01-01"),
-                    targetSamplingRate = 20.0,
-                    allowedGainCodes = ["H", "L"],
-                    timeRange = Range(-120, 600),
-                    phasesOrPhaseGroup = "pgroup",
+    req = rb.stationBased(t0 = UTCDateTime("2007-01-01"),
+                        t1 = UTCDateTime("2008-01-01"),
+                        targetSamplingRate = 20.0,
+                        allowedGainCodes = ["H", "L"],
+                        timeRange = Range(-120, 600),
+                        phasesOrPhaseGroup = "pgroup",
 
-                    networkStationCodes = [ "BL.*", "TA.*"],
-                    stationRestrictionArea = AreaRange(-150.0, -90.0, 15.0, 60.0),
+                        networkStationCodes = [ "BL.*", "TA.*"],
+                        stationRestrictionArea = AreaRange(-150.0, -90.0, 15.0, 60.0),
 
-                    eventRestrictionArea = AreaRange(-35.0, -10.0, -55.0, -60.0),
-                    magnitudeRange = Range(6., 9.0),
-                    depthRange = Range(0.0, 400.0),
-                    distanceRange = None
-                    )
+                        eventRestrictionArea = AreaRange(-35.0, -10.0, -55.0, -60.0),
+                        magnitudeRange = Range(6., 9.0),
+                        depthRange = Range(0.0, 400.0),
+                        distanceRange = None
+                        )
 #     rb.show_request(req)
 

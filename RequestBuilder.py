@@ -55,9 +55,40 @@ class AreaRange(object):
         return self.x.good(x) and self.y.good(y)
 
 class BaseBuilder(object):
+
     '''
     Generic Methods that can be used in FDSN or ARCLINK modes
     '''
+
+    def getChannelList(self, station, t0, targetsps, instcode):
+        raise Exception("Implement your own override !")
+
+    def build(self, lines, network, station, origin, phaselist, phasename, targetSamplingRate, allowedGainCodes, timeRange):
+         delta = util.locations2degrees(station.latitude,
+                                        station.longitude,
+                                        origin.latitude,
+                                        origin.longitude)
+
+         (ta, slowness) = self.__find_arrivalTime(origin.time, delta, origin.depth, phaselist)
+
+         # This method is overriden in each implementation
+         (z,n,e) = self.getChannelList(station, ta, targetSamplingRate, allowedGainCodes)
+
+         EI = self.__build_event_dictionary(origin.time, origin.latitude, origin.longitude, origin.depth)
+         SI = self.__build_station_dictionary(network.code, station.code, station.latitude, station.longitude, station.elevation)
+         PI = self.__build_pick_dictionary(phasename, ta, slowness)
+
+         lines.append((ta + timeRange.min(),
+                       ta + timeRange.max(),
+                       network.code,
+                       station.code,
+                       [z,n,e],
+                       SI,
+                       EI,
+                       PI)
+                      )
+
+         return
 
     def getOrigin(self, event):
         origin = event.preferred_origin()
@@ -90,7 +121,7 @@ class BaseBuilder(object):
 
         return (list[0], list)
 
-    def find_arrivalTime(self, t0, delta, depth, phase):
+    def __find_arrivalTime(self, t0, delta, depth, phase):
         '''
             delta is in degrees
             depth is in meters
@@ -105,7 +136,7 @@ class BaseBuilder(object):
         slowness = seltimes[0]['dT/dD']
         return (t0 + time, slowness)
 
-    def build_event_dictionary(self, t0, originLatitude, originLongitude, originDepth):
+    def __build_event_dictionary(self, t0, originLatitude, originLongitude, originDepth):
         '''
             t0 is a UTCDateTime
             eventLatitude is degrees
@@ -121,7 +152,7 @@ class BaseBuilder(object):
                      }
         return AttribDict(eventinfo)
 
-    def build_station_dictionary(self, networkCode, stationCode, stationLatitude, stationLongitude, stationElevation):
+    def __build_station_dictionary(self, networkCode, stationCode, stationLatitude, stationLongitude, stationElevation):
         '''
             networkCode is String
             stationCode is String
@@ -137,7 +168,7 @@ class BaseBuilder(object):
                    }
         return AttribDict(stationinfo)
 
-    def build_pick_dictionary(self, phase, time, slowness):
+    def __build_pick_dictionary(self, phase, time, slowness):
         pickinfo = {
                     'phase': phase,
                     'time': time,
@@ -307,7 +338,7 @@ class RequestBuilder(BaseBuilder):
 
         return item
 
-    def __getFDSNChannelList(self, station, t0, targetsps, instcode):
+    def getChannelList(self, station, t0, targetsps, instcode):
         clist = [ ]
 
         ## Choose will build something like: (loca, chan, sps , az  , dip , dsps)
@@ -337,7 +368,6 @@ class RequestBuilder(BaseBuilder):
         e = (e[0], e[1], e[3], e[4])
 
         return (z,n,e)
-
 
     '''
     Request Builder Methods
@@ -416,29 +446,10 @@ class RequestBuilder(BaseBuilder):
                             origin = self.getOrigin(event)
 
                             print >>sys.stderr,"  Working on origin: %s" % str(origin.time),
-
-                            delta = util.locations2degrees(station.latitude,
-                                                           station.longitude,
-                                                           origin.latitude,
-                                                           origin.longitude)
-
-                            (ta, slowness) = self.find_arrivalTime(origin.time, delta, origin.depth, phaselist)
-
-                            (z,n,e) = self.__getFDSNChannelList(station, ta, targetSamplingRate, allowedGainCodes)
-
-                            EI = self.build_event_dictionary(origin.time, origin.latitude, origin.longitude, origin.depth)
-                            SI = self.build_station_dictionary(network.code, station.code, station.latitude, station.longitude, station.elevation)
-                            PI = self.build_pick_dictionary(phasename, ta, slowness)
-
-                            lines.append((ta + timeRange.min(),
-                                      ta + timeRange.max(),
-                                      network.code,
-                                      station.code,
-                                      [z,n,e],
-                                      SI,
-                                      EI,
-                                      PI)
-                                     )
+                            self.build(lines,
+                                       network, station, origin,
+                                       phaselist, phasename,
+                                       targetSamplingRate, allowedGainCodes, timeRange)
                             print >>sys.stderr,"OK!"
                         except NextItem,e:
                             print >>sys.stderr,"  Skipping: %s" % str(e)
@@ -481,8 +492,11 @@ class RequestBuilder(BaseBuilder):
 
         # Event loop
         for event in events:
-            print >>sys.stderr,""
-            origin = self.getOrigin(event)
+            try:
+                origin = self.getOrigin(event)
+            except NextItem,e:
+                print >>sys.stderr,"Skipping Origin: %s" % str(e)
+                continue
 
             print >>sys.stderr,"Working on origin: %s" % str(origin.time)
 
@@ -513,30 +527,10 @@ class RequestBuilder(BaseBuilder):
                     for station in network.stations:
                         try:
                             print >>sys.stderr,"  Working on station %s.%s " % (network.code, station.code),
-
-                            delta = util.locations2degrees(station.latitude,
-                                                           station.longitude,
-                                                           origin.latitude,
-                                                           origin.longitude)
-
-                            (ta, slowness) = self.find_arrivalTime(origin.time, delta, origin.depth, phaselist)
-
-                            (z,n,e) = self.__getFDSNChannelList(station, ta, targetSamplingRate, allowedGainCodes)
-
-                            EI = self.build_event_dictionary(origin.time, origin.latitude, origin.longitude, origin.depth)
-                            SI = self.build_station_dictionary(network.code, station.code, station.latitude, station.longitude, station.elevation)
-                            PI = self.build_pick_dictionary(phasename, ta, slowness)
-
-                            lines.append((ta + timeRange.min(),
-                                          ta + timeRange.max(),
-                                          network.code,
-                                          station.code,
-                                          [z,n,e],
-                                          SI,
-                                          EI,
-                                          PI
-                                         )
-                            )
+                            self.build(lines,
+                                       network, station, origin,
+                                       phaselist, phasename,
+                                       targetSamplingRate, allowedGainCodes, timeRange)
                             print >>sys.stderr,"OK!"
                         except NextItem, e:
                             print >>sys.stderr,"\n  Skipping: %s" % str(e)
@@ -568,6 +562,8 @@ if __name__ == "__main__":
                         depthRange = Range(0.0, 400.0),
                         distanceRange = None
                         )
+
+    rb.show_request(req)
 
 #     rb.save_request("request.pik", req)
 #     rb.show_request(req)
