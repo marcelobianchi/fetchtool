@@ -1,6 +1,6 @@
 from obspy import fdsn
 import shutil, StringIO, os, sys
-from seiscomp.arclink.manager import ArclinkManager, ArclinkError
+from seiscomp.arclink.manager import ArclinkManager, ArclinkError, arclink_status_string
 from Savers import Saver
 from obspy.core import read as oREAD, Stream
 

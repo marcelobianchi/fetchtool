@@ -75,6 +75,8 @@ class AreaRange(object):
         return self.x.good(x) and self.y.good(y)
 
 class BaseBuilder(object):
+    def __init__(self):
+        self.plotevents = True
 
     '''
     Generic Methods that can be used in FDSN or ARCLINK modes
@@ -305,7 +307,7 @@ class BaseBuilder(object):
             raise Exception("Cannot read file, %s" % filename)
 
         try:
-            iofile = file("request.pik", "r")
+            iofile = file(filename, "r")
             request = pickle.load(iofile)
             iofile.close()
         except:
@@ -326,6 +328,7 @@ class BaseBuilder(object):
 
 class ArcLinkRequestBuilder(BaseBuilder):
     def __init__(self, fdsnURL, arclinkURL):
+        BaseBuilder.__init__(self)
         (host,port,user) = arclinkURL.strip().split(":")
         self.arclink_manager = ArclinkManager("%s:%s" % (host,port), user)
         self.fdsn_client = fClient(fdsnURL)
@@ -418,6 +421,8 @@ class ArcLinkRequestBuilder(BaseBuilder):
 
         try:
             events = self.fdsn_client.get_events(**kwargsevent)
+            if self.plotevents:
+                events.plot()
             print >>sys.stderr,"Found %d events." % len(events)
         except FDSNException:
             print >>sys.stderr,"No events found for the given parameters."
@@ -531,6 +536,8 @@ class ArcLinkRequestBuilder(BaseBuilder):
 
 class RequestBuilder(BaseBuilder):
     def __init__(self, server):
+        BaseBuilder.__init__(self)
+
         if isinstance(server, str):
             self.fdsn_client = fClient(server)
         elif isinstance(server, fClient):
