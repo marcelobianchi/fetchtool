@@ -33,8 +33,8 @@ def unWrapNSLC(objs, archive = None, onlyShared = False):
 
 class Range(object):
     def __init__(self, minvalue, maxvalue):
-        self._min = min([minvalue,maxvalue])
-        self._max = max([minvalue,maxvalue])
+        self._min = min([minvalue,maxvalue]) if minvalue != None and maxvalue != None else minvalue
+        self._max = max([minvalue,maxvalue]) if minvalue != None and maxvalue != None else maxvalue
 
     def min(self):
         return self._min
