@@ -251,8 +251,8 @@ class QSaver(Saver):
             try:
                 if evp.magnitude is not None:
                         trace.stats.sh['MAGNITUDE'] = evp.magnitude
-            except KeyError,e:
-                print >>sys.stderr,"No magnitude vlaue (%s)." % e
+            except KeyError:
+                print >>sys.stderr,"No magnitude value (%s) set."
 
             trace.stats.sh['P-ONSET'] = phase.time
 

@@ -38,5 +38,5 @@ sv = SacSaver(debug = True)
 sv.enableTimeWindowCheck(120.0, 35*60.0)
 
 dl = Downloader("ON-CHILE/", replacetree = True, resume = True, fetcher = ft, extracter = sv)
-dl.enableSaveRaw()
+# dl.enableSaveRaw()
 dl.work(request)
