@@ -130,10 +130,10 @@ class Saver(object):
             ts = trace.stats.starttime
             te = trace.stats.endtime
             pt = request[trace._f_linecount][7]['time']
-            if (pt - ts) < self.parameters.tw.prephasevalue:
+            if abs(pt - ts) < self.parameters.tw.prephasevalue:
                 del trace._f_evid
                 continue
-            if (te - pt) < self.parameters.tw.postphasevalue:
+            if abs(te - pt) < self.parameters.tw.postphasevalue:
                 del trace._f_evid
                 continue
 
@@ -153,8 +153,8 @@ class Saver(object):
         raise Exception("Base Class Saver -- Not implemented")
 
     def enableTimeWindowCheck(self,prephase, postphase):
-        self.parameters.tw.prephasevalue = prephase
-        self.parameters.tw.postphasevalue = postphase
+        self.parameters.tw.prephasevalue = abs(prephase)
+        self.parameters.tw.postphasevalue = abs(postphase)
 
     def enablermscheck(self,f1,f2,ratio):
         raise Exception("Not Implemented")
