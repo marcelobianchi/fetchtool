@@ -8,6 +8,9 @@ from obspy.fdsn.header import FDSNException
 import pickle
 import os
 
+class BadParameter(Exception):
+    pass
+
 class NextItem(Exception):
     pass
 
@@ -64,31 +67,31 @@ class BaseBuilder(object):
         raise Exception("Implement your own override !")
 
     def build(self, lines, network, station, origin, phaselist, phasename, targetSamplingRate, allowedGainCodes, timeRange):
-         delta = util.locations2degrees(station.latitude,
-                                        station.longitude,
-                                        origin.latitude,
-                                        origin.longitude)
+        delta = util.locations2degrees(station.latitude,
+                                       station.longitude,
+                                       origin.latitude,
+                                       origin.longitude)
 
-         (ta, slowness) = self.__find_arrivalTime(origin.time, delta, origin.depth, phaselist)
+        (ta, slowness) = self.__find_arrivalTime(origin.time, delta, origin.depth, phaselist)
 
-         # This method is overriden in each implementation
-         (z,n,e) = self.getChannelList(station, ta, targetSamplingRate, allowedGainCodes)
+        # This method is overriden in each implementation
+        (z,n,e) = self.getChannelList(station, ta, targetSamplingRate, allowedGainCodes)
 
-         EI = self.__build_event_dictionary(origin.time, origin.latitude, origin.longitude, origin.depth)
-         SI = self.__build_station_dictionary(network.code, station.code, station.latitude, station.longitude, station.elevation)
-         PI = self.__build_pick_dictionary(phasename, ta, slowness)
+        EI = self.__build_event_dictionary(origin.time, origin.latitude, origin.longitude, origin.depth)
+        SI = self.__build_station_dictionary(network.code, station.code, station.latitude, station.longitude, station.elevation)
+        PI = self.__build_pick_dictionary(phasename, ta, slowness)
 
-         lines.append((ta + timeRange.min(),
-                       ta + timeRange.max(),
-                       network.code,
-                       station.code,
-                       [z,n,e],
-                       SI,
-                       EI,
-                       PI)
-                      )
+        lines.append((ta + timeRange.min(),
+                      ta + timeRange.max(),
+                      network.code,
+                      station.code,
+                      [z,n,e],
+                      SI,
+                      EI,
+                      PI)
+                     )
 
-         return
+        return
 
     def getOrigin(self, event):
         origin = event.preferred_origin()
@@ -101,7 +104,7 @@ class BaseBuilder(object):
         return origin
 
     def resolve_phasenames(self, value):
-        list = []
+        plist = []
 
         '''
         Define more groups as needed:
@@ -115,11 +118,11 @@ class BaseBuilder(object):
 
         for item in value:
             try:
-                list.extend(groups[item])
-            except KeyError,e:
-                list.append(item)
+                plist.extend(groups[item])
+            except KeyError:
+                plist.append(item)
 
-        return (list[0], list)
+        return (plist[0], plist)
 
     def __find_arrivalTime(self, t0, delta, depth, phase):
         '''
@@ -182,11 +185,11 @@ class BaseBuilder(object):
         for line in lines:
             key = "%s.%s" % (line[2],line[3])
             try:
-                list = request[key]
+                clist = request[key]
             except KeyError:
                 request[key] = []
-                list = request[key]
-            list.append(line)
+                clist = request[key]
+            clist.append(line)
 
         return request
 
@@ -196,11 +199,11 @@ class BaseBuilder(object):
         for line in lines:
             key = "%s" % (line[6]['eventId'])
             try:
-                list = request[key]
+                clist = request[key]
             except KeyError:
                 request[key] = []
-                list = request[key]
-            list.append(line)
+                clist = request[key]
+            clist.append(line)
 
         return request
 
@@ -339,7 +342,6 @@ class RequestBuilder(BaseBuilder):
         return item
 
     def getChannelList(self, station, t0, targetsps, instcode):
-        clist = [ ]
 
         ## Choose will build something like: (loca, chan, sps , az  , dip , dsps)
         z = (None, None, None, None, None, None)

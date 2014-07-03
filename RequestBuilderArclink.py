@@ -1,17 +1,15 @@
 ## Python Basics
-import sys, pickle
+import sys
 
 from RequestBuilder import BaseBuilder, Range, AreaRange, NextItem
 
 ## Obspy tools
-from obspy.core import UTCDateTime, util, AttribDict
+from obspy.core import UTCDateTime
 from obspy import fdsn
-from obspy.station import Station as FDSNStation
 from obspy.fdsn.header import FDSNException
 
 ## Sc3 Tools
 from seiscomp.arclink.manager import ArclinkManager
-import obspy
 
 def unWrapNSLC(objs, archive = None, onlyShared = False):
     # unwrap lists of lists into arrays of tuples
@@ -61,7 +59,6 @@ class ArcLinkRequestBuilder(BaseBuilder):
         return item
 
     def getChannelList(self, station, t0, targetsps, instcode):
-        clist = [ ]
 
         ## Choose will build something like: (loca, chan, sps , az  , dip , dsps)
         z = (None, None, None, None, None, None)

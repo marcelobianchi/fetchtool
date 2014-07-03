@@ -1,4 +1,4 @@
-import re
+import re,os,sys
 
 class ShStation(object):
     ''' Class to handle with STATINF.DAT files'''
