@@ -130,10 +130,10 @@ class Saver(object):
             ts = trace.stats.starttime
             te = trace.stats.endtime
             pt = request[trace._f_linecount][7]['time']
-            if abs(pt - ts) < self.parameters.tw.prephasevalue:
+            if pt - ts < self.parameters.tw.prephasevalue:
                 del trace._f_evid
                 continue
-            if abs(te - pt) < self.parameters.tw.postphasevalue:
+            if te - pt < self.parameters.tw.postphasevalue:
                 del trace._f_evid
                 continue
 
@@ -217,7 +217,7 @@ class QSaver(Saver):
         filename = self._getfilename(key)
         if self._debug: print >>sys.stderr,"  Wrote %s" % os.path.join(folder, filename)
 #        stream.write("debug", format="MSEED")
-        stream.sort(['EVIDMINE','channel'])
+        stream.sort(['EVIDMINE','network', 'station', 'channel'])
         stream.write(folder, format="Q")
 
         # Handle the STATINF.DAT SH file
