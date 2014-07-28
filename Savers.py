@@ -98,16 +98,16 @@ class Saver(object):
         i = 0
         for trace in stream:
             try:
-                id = ids[trace._f_evid]
+                evid = ids[trace._f_evid]
             except KeyError:
-                id= []
-                ids[trace._f_evid] = id
-            id.append((trace.stats.channel, i, trace.stats.npts))
+                evid= []
+                ids[trace._f_evid] = evid
+            evid.append((trace.stats.channel, i, trace.stats.npts))
             i += 1
 
         # Collect ids to remove
         ids_to_remove = [ ]
-        for id in ids:
+        for evid in ids:
             zs = self._collect(ids[id], ["Z"])
             ns = self._collect(ids[id], ["N", "1"])
             es = self._collect(ids[id], ["E", "2"])
@@ -117,7 +117,7 @@ class Saver(object):
             es = self._makechoice(stream, es)
 
             if len(zs) != 1 or len(ns) != 1 or len(es) != 1:
-                ids_to_remove.append(id)
+                ids_to_remove.append(evid)
 
         # Clean-up
         self._cleanids("3C-", stream, ids_to_remove)
