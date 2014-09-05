@@ -32,6 +32,9 @@ class Status(object):
     def __iter__(self):
         return self
 
+    def __len__(self):
+        return 0
+
     def next(self):
         raise StopIteration
 
@@ -208,6 +211,7 @@ class BaseBuilder(object):
                      'time': t0,
                      'latitude': originLatitude,
                      'longitude': originLongitude,
+                     ## Depth is to be in KM !
                      'depth': originDepth / 1000.0,
                      'magnitude': eventMagnitude
                      }
@@ -225,7 +229,8 @@ class BaseBuilder(object):
                        'stationId': "%s.%s" % (networkCode, stationCode),
                        'latitude' : stationLatitude,
                        'longitude': stationLongitude,
-                       'elevation': stationElevation / 1000.0
+                       ## Elevation is to be in meters !
+                       'elevation': stationElevation
                    }
         return AttribDict(stationinfo)
 
