@@ -117,12 +117,14 @@ class Sc3ArclinkFetcher(BaseFetcher):
             for (location, channel, azimuth, dip) in channels:
                 rq.add(t0.datetime, t1.datetime, net, sta, channel, location)
 
-            if not self._all_in_one:
+            if not self._all_in_one or len(rq.content) > 400:
+                if len(rq.content) > 400:
+                    print >>sys.stderr,"Downloading first %d lines of request" % len(rq.content)
                 rq = self._download(rq, stream)
 
         if self._all_in_one:
             if len(rq.content) > 400:
-                raise Exception("Attention, you are trying to ask for more than 400 lines of request !!!!")
+                print >>sys.stderr,"Attention, you are trying to ask for more than 400 lines of request !!!!"
 
             self._download(rq, stream)
 
@@ -214,6 +216,8 @@ class Downloader(object):
 
         # Work on request base
         for key in requests.keys():
+            if key == "STATUS": continue
+
             request = requests[key]
             print >>sys.stderr,"\n %s has %d events selected" % (key,len(request))
 

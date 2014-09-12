@@ -6,9 +6,40 @@ from obspy.core import util
 from obspy import taup
 from obspy.fdsn.header import FDSNException
 from seiscomp.arclink.manager import ArclinkManager
+from obspy.core import event as ObsEvent
 
 import pickle
 import os
+
+import socket
+
+STATUS = AttribDict({
+                     "unset": "unset",
+                     
+                     "requested": "requested",
+                     "downloaded": "downloaded",
+                     "saved": "saved",
+                     
+                     "temporary_error": "temporary_error",
+                     "permanent_error": "permanent_error",
+                     })
+
+class Status(object):
+    def __init__(self):
+        self.level = STATUS.unset
+        self.comment = None
+
+    def __iter__(self):
+        return self
+
+    def __len__(self):
+        return 0
+
+    def next(self):
+        raise StopIteration
+
+    def show(self):
+        print "Status Level: ",self.level, "[",self.comment,"]"
 
 class BadParameter(Exception):
     pass
@@ -116,10 +147,19 @@ class BaseBuilder(object):
         origin = event.preferred_origin()
         magnitude = event.preferred_magnitude()
 
-        if origin == None:
-            if len(event.origins) == 1:
-                return event.origins[0]
-            raise NextItem("Bad origin for event.")
+        if origin is None:
+            if len(event.origins) == 0:
+                raise NextItem("Bad origin for event.")
+            origin = event.origins[0]
+            
+
+        if magnitude is None:
+            if len(event.magnitudes) == 0:
+                raise NextItem("Bad Magnitude for event.")
+            magnitude = event.magnitudes[0]
+
+        if not isinstance(origin, ObsEvent.Origin): raise NextItem("Wrong origin for event.")
+        if not isinstance(magnitude, ObsEvent.Magnitude): raise NextItem("Wrong magnitude for event.")
 
         return (origin, magnitude)
 
@@ -171,6 +211,7 @@ class BaseBuilder(object):
                      'time': t0,
                      'latitude': originLatitude,
                      'longitude': originLongitude,
+                     ## Depth is to be in KM !
                      'depth': originDepth / 1000.0,
                      'magnitude': eventMagnitude
                      }
@@ -188,7 +229,8 @@ class BaseBuilder(object):
                        'stationId': "%s.%s" % (networkCode, stationCode),
                        'latitude' : stationLatitude,
                        'longitude': stationLongitude,
-                       'elevation': stationElevation / 1000.0
+                       ## Elevation is to be in meters !
+                       'elevation': stationElevation
                    }
         return AttribDict(stationinfo)
 
@@ -202,6 +244,8 @@ class BaseBuilder(object):
 
     def organize_by_station(self, lines):
         request = {}
+
+        request["STATUS"] = Status()
 
         for line in lines:
             key = "%s.%s" % (line[2],line[3])
@@ -295,8 +339,12 @@ class BaseBuilder(object):
 
         return kwargs
 
-    def show_request(self, request):
+    @staticmethod
+    def show_request(request):
         for key in request:
+            if key == "STATUS":
+                request[key].show()
+                continue
             print key
             for line in request[key]:
                 print " %s - %s\n %s %s\n %s\n %s\n %s\n %s\n" % line
@@ -304,7 +352,8 @@ class BaseBuilder(object):
             print ""
         return
 
-    def load_request(self, filename):
+    @staticmethod
+    def load_request(filename):
         if filename is None or not os.path.isfile(filename):
             raise Exception("Cannot read file, %s" % filename)
 
@@ -317,7 +366,8 @@ class BaseBuilder(object):
 
         return request
 
-    def save_request(self, filename, request):
+    @staticmethod
+    def save_request(filename, request):
         if filename is None or os.path.isfile(filename):
             raise Exception("Will not overwrite file, %s" % filename)
 
@@ -327,6 +377,43 @@ class BaseBuilder(object):
         iofile = file(filename, "w")
         pickle.dump(request, iofile)
         iofile.close()
+
+    def check_param(self, t0, t1, targetSamplingRate, allowedGainCodes, timeRange, phasesOrPhaseGroup, 
+                        networkStationCodes, stationRestrictionArea,
+                        eventRestrictionArea,
+                        magnitudeRange,
+                        depthRange,
+                        distanceRange):
+
+        if t0 is None: raise Exception("T0 should not be None")
+        if t1 is None: raise Exception("T1 should not be None")
+
+        if targetSamplingRate is None: raise Exception("targetSamplingRate should not be None")
+        if allowedGainCodes is None: raise Exception("allowedGainCodes should not be None")
+        if phasesOrPhaseGroup is None: raise Exception("phasesOrPhaseGroup should not be None")
+
+        if timeRange is None or not isinstance(timeRange, Range):
+            raise Exception("Invalid TimeRange / should be Range Instance")
+
+        if stationRestrictionArea is not None and not isinstance(stationRestrictionArea, AreaRange):
+            raise Exception("Invalid StationRestrictionArea / should be AreaRange Instance")
+        if eventRestrictionArea is not None and not isinstance(eventRestrictionArea, AreaRange):
+            raise Exception("Invalid eventRestrictionArea / should be AreaRange Instance")
+
+        if magnitudeRange is not None and not isinstance(magnitudeRange, Range):
+            raise Exception("Invalid magnitudeRange / should be Range Instance")
+        if depthRange is not None and not isinstance(depthRange, Range):
+            raise Exception("Invalid depthRange / should be Range Instance")
+        if distanceRange is not None and not isinstance(distanceRange, Range):
+            raise Exception("Invalid distanceRange / should be Range Instance")
+
+        if isinstance(t0, str): t0 = UTCDateTime(t0)
+        if isinstance(t1, str): t1 = UTCDateTime(t1)
+
+        return (t0, t1, targetSamplingRate, allowedGainCodes, timeRange, phasesOrPhaseGroup, 
+                    networkStationCodes, stationRestrictionArea,
+                    eventRestrictionArea, magnitudeRange, depthRange,
+                    distanceRange)
 
 class ArcLinkRequestBuilder(BaseBuilder):
     def __init__(self, fdsnURL, arclinkURL):
@@ -537,15 +624,29 @@ class ArcLinkRequestBuilder(BaseBuilder):
         return request
 
 class RequestBuilder(BaseBuilder):
-    def __init__(self, server):
+    def __init__(self, event_serverorurl, station_serverorurl = None):
         BaseBuilder.__init__(self)
 
-        if isinstance(server, str):
-            self.fdsn_client = fClient(server)
-        elif isinstance(server, fClient):
-            self.fdsn_client = server
+        d = False
+
+        if isinstance(event_serverorurl, str):
+            self.e_fdsn_client = fClient(event_serverorurl, debug = d)
+        elif isinstance(event_serverorurl, fClient):
+            self.e_fdsn_client = event_serverorurl
         else:
-            raise BadParameter("Invalid server object, expected String address of fdsnClient Class")
+            raise BadParameter("Invalid event_serverorurl object, expected String address of fdsnClient Class")
+
+
+        if station_serverorurl == None:
+            print "Same Server for Station as Event"
+            self.s_fdsn_client = self.e_fdsn_client
+        else:
+            if isinstance(station_serverorurl, str):
+                self.s_fdsn_client = fClient(station_serverorurl, debug = d)
+            elif isinstance(station_serverorurl, fClient):
+                self.s_fdsn_client = station_serverorurl
+            else:
+                raise BadParameter("Invalid station_serverorurl object, expected String address of fdsnClient Class")
 
     '''
     FDSN specific Methods
@@ -615,17 +716,28 @@ class RequestBuilder(BaseBuilder):
                     depthRange = None,
                     distanceRange = None):
 
+        (t0, t1, targetSamplingRate, allowedGainCodes, timeRange, phasesOrPhaseGroup, 
+         networkStationCodes, stationRestrictionArea,
+         eventRestrictionArea, magnitudeRange, depthRange,
+         distanceRange) = self.check_param(t0, t1, targetSamplingRate, allowedGainCodes, timeRange, phasesOrPhaseGroup, 
+                                          networkStationCodes, stationRestrictionArea,
+                                          eventRestrictionArea,
+                                          magnitudeRange,
+                                          depthRange,
+                                          distanceRange)
+
         (phasename, phaselist) = self.resolve_phasenames(phasesOrPhaseGroup)
         print >>sys.stderr,"Searching using: %s %s" % (phasename, phaselist)
 
+        
         # List of request lines
         lines = []
 
         # Start Build the parameters to pass on to the Client
         kwargsstation = self.fill_kwargsstation(t0,
-                                                  t1,
-                                                  stationRestrictionArea,
-                                                  None, None, None)
+                                                t1,
+                                                stationRestrictionArea,
+                                                None, None, None)
 
         # Check if network/station code is a string -> list
         if isinstance(networkStationCodes, str):
@@ -639,7 +751,7 @@ class RequestBuilder(BaseBuilder):
             kwargsstation['sta'] = sta
 
             try:
-                inventory = self.fdsn_client.get_stations(**kwargsstation)
+                inventory = self.s_fdsn_client.get_stations(**kwargsstation)
             except:
                 inventory = None
 
@@ -654,9 +766,15 @@ class RequestBuilder(BaseBuilder):
                 for station in network.stations:
                     print >>sys.stderr,"\n Working on station %s.%s" % (network.code, station.code)
 
+                    evsdate = t0
+                    if station.start_date and station.start_date > evsdate: evsdate = station.start_date
+
+                    evedate = t1
+                    if station.end_date and station.end_date < evedate: evedate = station.end_date
+
                     # Start Build the parameters to pass on the Event Client
-                    kwargsevent = self.fill_kwargsevent(max([station.start_date, t0]),
-                                                          min([station.end_date, t1]),
+                    kwargsevent = self.fill_kwargsevent(evsdate,
+                                                          evedate,
                                                           eventRestrictionArea,
                                                           magnitudeRange,
                                                           depthRange,
@@ -665,7 +783,16 @@ class RequestBuilder(BaseBuilder):
                                                           distanceRange)
 
                     try:
-                        events = self.fdsn_client.get_events(**kwargsevent)
+                        events = "INVALID"
+                        tryid = 1
+                        while tryid < 3 and events == "INVALID":
+                            try:
+                                events = self.e_fdsn_client.get_events(**kwargsevent)
+                            except socket.timeout:
+                                print 'Failed . try %d' % tryid
+                                tryid = tryid + 1
+                                pass
+			if events == "INVALID": events = None
                     except FDSNException,e:
                         events = None
 
@@ -717,7 +844,7 @@ class RequestBuilder(BaseBuilder):
                                               None, None, None)
 
         try:
-            events = self.fdsn_client.get_events(**kwargsevent)
+            events = self.e_fdsn_client.get_events(**kwargsevent)
             print >>sys.stderr,"Found %d events." % len(events)
         except FDSNException:
             print >>sys.stderr,"No events found for the given parameters."
@@ -746,7 +873,7 @@ class RequestBuilder(BaseBuilder):
                 kwargsstation['sta'] = sta
 
                 try:
-                    inventory = self.fdsn_client.get_stations(**kwargsstation)
+                    inventory = self.s_fdsn_client.get_stations(**kwargsstation)
                 except FDSNException,e:
                     inventory = None
 
