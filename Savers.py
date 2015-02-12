@@ -108,9 +108,9 @@ class Saver(object):
         # Collect ids to remove
         ids_to_remove = [ ]
         for evid in ids:
-            zs = self._collect(ids[id], ["Z"])
-            ns = self._collect(ids[id], ["N", "1"])
-            es = self._collect(ids[id], ["E", "2"])
+            zs = self._collect(ids[evid], ["Z"])
+            ns = self._collect(ids[evid], ["N", "1"])
+            es = self._collect(ids[evid], ["E", "2"])
 
             zs = self._makechoice(stream, zs)
             ns = self._makechoice(stream, ns)
