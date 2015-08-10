@@ -389,23 +389,28 @@ class BaseBuilder(object):
         if t1 is None: raise Exception("T1 should not be None")
 
         if targetSamplingRate is None: raise Exception("targetSamplingRate should not be None")
-        if allowedGainCodes is None: raise Exception("allowedGainCodes should not be None")
-        if phasesOrPhaseGroup is None: raise Exception("phasesOrPhaseGroup should not be None")
+        try:
+            targetSamplingRate = float(targetSamplingRate)
+        except ValueError,e:
+            raise Exception("Invalid value for targetSamplingRate - expected float:\n  %s." % e.message)
+
+        if allowedGainCodes is None or not isinstance(allowedGainCodes, list): raise Exception("allowedGainCodes should not be None - expected [ ... ]")
+        if phasesOrPhaseGroup is None: raise Exception("phasesOrPhaseGroup should not be None - expected a phase name or group")
 
         if timeRange is None or not isinstance(timeRange, Range):
-            raise Exception("Invalid TimeRange / should be Range Instance")
+            raise Exception("Invalid TimeRange - expected Range Instance")
 
         if stationRestrictionArea is not None and not isinstance(stationRestrictionArea, AreaRange):
-            raise Exception("Invalid StationRestrictionArea / should be AreaRange Instance")
+            raise Exception("Invalid StationRestrictionArea - expected AreaRange Instance")
         if eventRestrictionArea is not None and not isinstance(eventRestrictionArea, AreaRange):
-            raise Exception("Invalid eventRestrictionArea / should be AreaRange Instance")
+            raise Exception("Invalid eventRestrictionArea - expected AreaRange Instance")
 
         if magnitudeRange is not None and not isinstance(magnitudeRange, Range):
-            raise Exception("Invalid magnitudeRange / should be Range Instance")
+            raise Exception("Invalid magnitudeRange - expected Range Instance")
         if depthRange is not None and not isinstance(depthRange, Range):
-            raise Exception("Invalid depthRange / should be Range Instance")
+            raise Exception("Invalid depthRange - expected Range Instance")
         if distanceRange is not None and not isinstance(distanceRange, Range):
-            raise Exception("Invalid distanceRange / should be Range Instance")
+            raise Exception("Invalid distanceRange - expected Range Instance")
 
         if isinstance(t0, str): t0 = UTCDateTime(t0)
         if isinstance(t1, str): t1 = UTCDateTime(t1)
@@ -502,6 +507,16 @@ class ArcLinkRequestBuilder(BaseBuilder):
         if networkStationCodes is None:
             networkStationCodes = [ "*.*" ]
 
+        (t0, t1, targetSamplingRate, allowedGainCodes, timeRange, phasesOrPhaseGroup, 
+        networkStationCodes, stationRestrictionArea,
+        eventRestrictionArea, magnitudeRange, depthRange,
+        distanceRange) = self.check_param(t0, t1, targetSamplingRate, allowedGainCodes, timeRange, phasesOrPhaseGroup, 
+                                          networkStationCodes, stationRestrictionArea,
+                                          eventRestrictionArea,
+                                          magnitudeRange,
+                                          depthRange,
+                                          distanceRange)
+
         kwargsevent = self.fill_kwargsevent(t0, t1,
                                               eventRestrictionArea,
                                               magnitudeRange,
@@ -567,6 +582,16 @@ class ArcLinkRequestBuilder(BaseBuilder):
 
         (phasename, phaselist) = self.resolve_phasenames(phasesOrPhaseGroup)
         print >>sys.stderr,"Searching using: %s %s" % (phasename, phaselist)
+
+        (t0, t1, targetSamplingRate, allowedGainCodes, timeRange, phasesOrPhaseGroup, 
+        networkStationCodes, stationRestrictionArea,
+        eventRestrictionArea, magnitudeRange, depthRange,
+        distanceRange) = self.check_param(t0, t1, targetSamplingRate, allowedGainCodes, timeRange, phasesOrPhaseGroup, 
+                                          networkStationCodes, stationRestrictionArea,
+                                          eventRestrictionArea,
+                                          magnitudeRange,
+                                          depthRange,
+                                          distanceRange)
 
         ## Start the Loop
         # On the given station patterns
@@ -837,6 +862,16 @@ class RequestBuilder(BaseBuilder):
         if networkStationCodes is None:
             networkStationCodes = [ "*.*" ]
 
+        (t0, t1, targetSamplingRate, allowedGainCodes, timeRange, phasesOrPhaseGroup, 
+        networkStationCodes, stationRestrictionArea,
+        eventRestrictionArea, magnitudeRange, depthRange,
+        distanceRange) = self.check_param(t0, t1, targetSamplingRate, allowedGainCodes, timeRange, phasesOrPhaseGroup, 
+                                          networkStationCodes, stationRestrictionArea,
+                                          eventRestrictionArea,
+                                          magnitudeRange,
+                                          depthRange,
+                                          distanceRange)
+
         kwargsevent = self.fill_kwargsevent(t0, t1,
                                               eventRestrictionArea,
                                               magnitudeRange,
@@ -845,6 +880,8 @@ class RequestBuilder(BaseBuilder):
 
         try:
             events = self.e_fdsn_client.get_events(**kwargsevent)
+            if self.plotevents:
+                events.plot()
             print >>sys.stderr,"Found %d events." % len(events)
         except FDSNException:
             print >>sys.stderr,"No events found for the given parameters."
