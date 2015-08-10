@@ -936,6 +936,17 @@ class RequestBuilder(BaseBuilder):
 
         return request
 
+    def filterChannels(self, request, allowedChannels = "Z"):
+        for evk in request:
+            ev = request[evk]
+            lines = []
+            for line in ev:
+                items = filter(lambda x: allowedChannels in x[1], line[4])
+                line = (line[0], line[1], line[2], line[3], items, line[5], line[6], line[7])
+                lines.append(line)
+            request[evk] = lines
+        return request
+
 if __name__ == "__main__":
 #     rb = ArcLinkRequestBuilder("IRIS","seisrequest.iag.usp.br:18001:m.bianchi@iag.usp.br")
     rb = RequestBuilder("IRIS")

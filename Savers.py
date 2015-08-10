@@ -93,6 +93,7 @@ class Saver(object):
 
     def _ensure_tree_components(self, stream, request):
         ids = {}
+        if self.parameters.no3c: return
 
         # Collect number of channels per ids
         i = 0
@@ -159,6 +160,9 @@ class Saver(object):
     def enablermscheck(self,f1,f2,ratio):
         raise Exception("Not Implemented")
 
+    def disable3ccheck(self):
+        self.parameters.no3c = True
+
     def __initParameters(self):
         parameters = AttribDict({})
 
@@ -172,6 +176,9 @@ class Saver(object):
         parameters.rms.rmsratio = None
         parameters.rms.freqmin = None
         parameters.rms.freqmax = None
+
+        # 3c check
+        parameters.no3c = False
 
         return parameters
 
