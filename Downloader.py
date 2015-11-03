@@ -204,6 +204,8 @@ class Downloader(object):
         return (removed, created)
 
     def enableSaveRaw(self):
+        folder = os.path.join(self._basedir, "RAW")
+        if not os.path.isdir(folder): os.mkdir(folder)
         self.__saveraw = True
 
     def work(self, requests):
@@ -231,8 +233,8 @@ class Downloader(object):
                 if data == None or len(data) == 0:
                     print >>sys.stderr,"  No Data for Node %s" % key
 
-                if self.__saveraw:
-                    data.write("%s.mseed" % key, "MSEED")
+                if data and self.__saveraw:
+                    data.write(os.path.join(self._basedir, "RAW", "%s.mseed" % key), "MSEED")
 
                 if data and self._extracter:
                     for extracter in self._extracter:

@@ -185,6 +185,8 @@ class Saver(object):
     def work(self, folder, key, request, stream):
         if not os.path.isdir(folder): raise Exception("Invalid folder")
 
+        stream = stream.copy()
+
         n_initial = len(stream)
 
         ## Process Stream Traces
@@ -211,6 +213,8 @@ class Saver(object):
         ## Extract
         written = self._extract(folder, key, request, stream)
 
+        del stream
+
         return (n_initial, n_associate, n_window, n_rms, n_tree, written)
 
 class QSaver(Saver):
@@ -221,6 +225,7 @@ class QSaver(Saver):
         return "%s" % (key.upper())
 
     def _extract(self, folder, key, request, stream):
+        if len(stream) == 0: return 0
         filename = self._getfilename(key)
         if self._debug: print >>sys.stderr,"  Wrote %s" % os.path.join(folder, filename)
 #        stream.write("debug", format="MSEED")

@@ -340,6 +340,34 @@ class BaseBuilder(object):
         return kwargs
 
     @staticmethod
+    def filterChannels(request, allowedChannels = "Z"):
+        for evk in request:
+            ev = request[evk]
+            lines = []
+            for line in ev:
+                items = filter(lambda x: allowedChannels in x[1], line[4])
+                line = (line[0], line[1], line[2], line[3], items, line[5], line[6], line[7])
+                lines.append(line)
+            request[evk] = lines
+        return request
+
+    @staticmethod
+    def filterNetStationEvent(request, existing):
+        keys = request.keys()
+        for evk in keys:
+            ev = request[evk]
+            lines = []
+            for line in ev:
+                t = ("%s.%s" % (line[2],line[3]), line[6].eventId)
+                if t in existing: continue
+                lines.append(line)
+            if lines:
+                request[evk] = lines
+            else:
+                del request[evk]
+        return request
+
+    @staticmethod
     def show_request(request):
         for key in request:
             if key == "STATUS":
@@ -593,6 +621,10 @@ class ArcLinkRequestBuilder(BaseBuilder):
                                           depthRange,
                                           distanceRange)
 
+        # Check if network/station code is a string -> list
+        if isinstance(networkStationCodes, str):
+            networkStationCodes = [ networkStationCodes ]
+
         ## Start the Loop
         # On the given station patterns
         for code in networkStationCodes:
@@ -732,7 +764,7 @@ class RequestBuilder(BaseBuilder):
     Request Builder Methods
     '''
 
-    def stationBased(self, t0, t1, targetSamplingRate, allowedGainCodes, timeRange, phasesOrPhaseGroup, 
+    def stationBased(self, t0, t1, targetSamplingRate, allowedGainCodes, timeRange, phasesOrPhaseGroup,
                     networkStationCodes,
                     stationRestrictionArea,
 
@@ -817,7 +849,7 @@ class RequestBuilder(BaseBuilder):
                                 print 'Failed . try %d' % tryid
                                 tryid = tryid + 1
                                 pass
-			if events == "INVALID": events = None
+                        if events == "INVALID": events = None
                     except FDSNException,e:
                         events = None
 
@@ -890,7 +922,7 @@ class RequestBuilder(BaseBuilder):
         # Event loop
         for event in events:
             try:
-               (origin, magnitude) = self.getOrigin(event)
+                (origin, magnitude) = self.getOrigin(event)
             except NextItem,e:
                 print >>sys.stderr,"Skipping Origin: %s" % str(e)
                 continue
@@ -934,17 +966,6 @@ class RequestBuilder(BaseBuilder):
 
         request = self.organize_by_event(lines)
 
-        return request
-
-    def filterChannels(self, request, allowedChannels = "Z"):
-        for evk in request:
-            ev = request[evk]
-            lines = []
-            for line in ev:
-                items = filter(lambda x: allowedChannels in x[1], line[4])
-                line = (line[0], line[1], line[2], line[3], items, line[5], line[6], line[7])
-                lines.append(line)
-            request[evk] = lines
         return request
 
 if __name__ == "__main__":
