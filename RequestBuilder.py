@@ -1,10 +1,12 @@
+from __future__ import division, print_function
+
 import sys
-from obspy.fdsn import Client as fClient
+
+from obspy.clients import fdsn
 from obspy.core import AttribDict
 from obspy.core.utcdatetime import UTCDateTime
-from obspy.core import util
+from obspy import geodetics
 from obspy import taup
-from obspy.fdsn.header import FDSNException
 from seiscomp.arclink.manager import ArclinkManager
 from obspy.core import event as ObsEvent
 
@@ -39,7 +41,7 @@ class Status(object):
         raise StopIteration
 
     def show(self):
-        print "Status Level: ",self.level, "[",self.comment,"]"
+        print("Status Level: ",self.level, "[",self.comment,"]")
 
 class BadParameter(Exception):
     pass
@@ -108,6 +110,7 @@ class AreaRange(object):
 class BaseBuilder(object):
     def __init__(self):
         self.plotevents = True
+        self.tworker = taup.TauPyModel()
 
     '''
     Generic Methods that can be used in FDSN or ARCLINK modes
@@ -117,7 +120,7 @@ class BaseBuilder(object):
         raise Exception("Implement your own override !")
 
     def build(self, lines, network, station, origin, magnitude, phaselist, phasename, targetSamplingRate, allowedGainCodes, timeRange):
-        delta = util.locations2degrees(station.latitude,
+        delta = geodetics.locations2degrees(station.latitude,
                                        station.longitude,
                                        origin.latitude,
                                        origin.longitude)
@@ -170,7 +173,7 @@ class BaseBuilder(object):
         Define more groups as needed:
         '''
         groups = {
-          "pgroup": ["P", "Pn", "Pdiff", "PKP", "PKiKP", "PKPab", "PKPbc", "PKPdf", "PKPdiff" ]
+          "pgroup": [ "ttp" ]
         }
 
         if isinstance(value, str):
@@ -189,14 +192,14 @@ class BaseBuilder(object):
             delta is in degrees
             depth is in meters
         '''
-        times = taup.getTravelTimes(delta, depth / 1000.0)
+        arrivals = self.tworker.get_travel_times(depth / 1000.0, delta, phase_list=phase )
 
-        seltimes = filter(lambda x: x['phase_name'] in phase, times)
-        if len(seltimes) == 0: 
+        if len(arrivals) == 0: 
             raise NextItem("No phases selected for Depth: %s Distance: %s Phases: %s" % (delta, depth, phase))
 
-        time = seltimes[0]['time']
-        slowness = seltimes[0]['dT/dD']
+        time = arrivals[0].time
+        slowness = arrivals[0].ray_param_sec_degree
+
         return (t0 + time, slowness)
 
     def __build_event_dictionary(self, t0, originLatitude, originLongitude, originDepth, eventMagnitude):
@@ -373,11 +376,11 @@ class BaseBuilder(object):
             if key == "STATUS":
                 request[key].show()
                 continue
-            print key
+            print(key)
             for line in request[key]:
-                print " %s - %s\n %s %s\n %s\n %s\n %s\n %s\n" % line
-                print ""
-            print ""
+                print(" %s - %s\n %s %s\n %s\n %s\n %s\n %s\n" % line)
+                print("")
+            print("")
         return
 
     @staticmethod
@@ -448,12 +451,12 @@ class BaseBuilder(object):
                     eventRestrictionArea, magnitudeRange, depthRange,
                     distanceRange)
 
-class ArcLinkRequestBuilder(BaseBuilder):
+class ArcLinkFDSNRequestBuilder(BaseBuilder):
     def __init__(self, fdsnURL, arclinkURL):
         BaseBuilder.__init__(self)
         (host,port,user) = arclinkURL.strip().split(":")
         self.arclink_manager = ArclinkManager("%s:%s" % (host,port), user)
-        self.fdsn_client = fClient(fdsnURL)
+        self.fdsn_client = fdsn.Client(fdsnURL)
 
     '''
     ArcLink specific Methods
@@ -500,7 +503,7 @@ class ArcLinkRequestBuilder(BaseBuilder):
                 elif channel.code[-1] == "E" or channel.code[-1] == "2":
                     e = self.__choose(e, location, channel, targetsps, instcode)
     #             else:
-    #                 print >>sys.stderr, "Unknow channel %s.%s" % (channel.location_code, channel.code)
+    #                 print("Unknow channel %s.%s" % (channel.location_code, channel.code), file=sys.stderr)
 
         if z[1] is None or n[1] is None or e[1] is None:
             raise NextItem("No Z, N or E channel(s) found")
@@ -530,7 +533,7 @@ class ArcLinkRequestBuilder(BaseBuilder):
         lines = []
 
         (phasename, phaselist) = self.resolve_phasenames(phasesOrPhaseGroup)
-        print >>sys.stderr,"Searching using: %s %s" % (phasename, phaselist)
+        print("Searching using: %s %s" % (phasename, phaselist), file=sys.stderr)
 
         if networkStationCodes is None:
             networkStationCodes = [ "*.*" ]
@@ -555,9 +558,9 @@ class ArcLinkRequestBuilder(BaseBuilder):
             events = self.fdsn_client.get_events(**kwargsevent)
             if self.plotevents:
                 events.plot()
-            print >>sys.stderr,"Found %d events." % len(events)
-        except FDSNException:
-            print >>sys.stderr,"No events found for the given parameters."
+            print("Found %d events." % len(events), file=sys.stderr)
+        except fdsn.header.FDSNException:
+            print("No events found for the given parameters.", file=sys.stderr)
             return None
 
         # Event loop
@@ -565,32 +568,32 @@ class ArcLinkRequestBuilder(BaseBuilder):
             try:
                 (origin, magnitude) = self.getOrigin(event)
             except NextItem,e:
-                print >>sys.stderr,"Skipping Origin: %s" % str(e)
+                print("Skipping Origin: %s" % str(e), file=sys.stderr)
                 continue
 
-            print >>sys.stderr,"Working on origin: %s" % str(origin.time)
+            print("Working on origin: %s" % str(origin.time), file=sys.stderr)
 
             for code in networkStationCodes:
                 (net, sta) = code.split(".")
                 inventory = self.arclink_manager.get_inventory(net, sta, "*", "*", (origin.time - 86400).datetime, (origin.time + 86400).datetime)
 
                 if inventory is None or len(inventory.network) == 0:
-                    print >>sys.stderr,"No stations for pattern: %s.%s" % (net, sta)
+                    print("No stations for pattern: %s.%s" % (net, sta), file=sys.stderr)
                     continue
 
-                print >>sys.stderr,"\n Stations for pattern: %s.%s" % (net,sta)
+                print("\n Stations for pattern: %s.%s" % (net,sta), file=sys.stderr)
                 # Station loop
                 for (ncode, nstart, network) in  unWrapNSLC(inventory.network):
                     for (scode, sstart, station) in  unWrapNSLC(network.station):
                         try:
-                            print >>sys.stderr,"  Working on station %s.%s " % (network.code, station.code),
+                            print("  Working on station %s.%s " % (network.code, station.code), end="", file=sys.stderr)
                             self.build(lines,
                                          network, station, origin, magnitude,
                                          phaselist, phasename,
                                          targetSamplingRate, allowedGainCodes, timeRange)
-                            print >>sys.stderr,"OK!"
+                            print("OK!", file=sys.stderr)
                         except NextItem, e:
-                            print >>sys.stderr,"\n  Skipping: %s" % str(e)
+                            print("\n  Skipping: %s" % str(e), file=sys.stderr)
 
         request = self.organize_by_event(lines)
 
@@ -609,7 +612,7 @@ class ArcLinkRequestBuilder(BaseBuilder):
         lines = []
 
         (phasename, phaselist) = self.resolve_phasenames(phasesOrPhaseGroup)
-        print >>sys.stderr,"Searching using: %s %s" % (phasename, phaselist)
+        print("Searching using: %s %s" % (phasename, phaselist), file=sys.stderr)
 
         (t0, t1, targetSamplingRate, allowedGainCodes, timeRange, phasesOrPhaseGroup, 
         networkStationCodes, stationRestrictionArea,
@@ -632,14 +635,14 @@ class ArcLinkRequestBuilder(BaseBuilder):
             inventory = self.arclink_manager.get_inventory(net, sta, "*", "*", t0.datetime, t1.datetime)
 
             if inventory is None or len(inventory.network) == 0:
-                print >>sys.stderr,"No stations for pattern: %s.%s" % (net, sta)
+                print("No stations for pattern: %s.%s" % (net, sta), file=sys.stderr)
                 continue
 
-            print >>sys.stderr,"Stations for pattern: %s.%s" % (net,sta)
+            print("Stations for pattern: %s.%s" % (net,sta), file=sys.stderr)
             # Station Loop
             for (ncode, nstart, network) in  unWrapNSLC(inventory.network):
                 for (scode, sstart, station) in  unWrapNSLC(network.station):
-                    print >>sys.stderr,"\n Working on station %s.%s" % (network.code, station.code)
+                    print("\n Working on station %s.%s" % (network.code, station.code), file=sys.stderr)
 
                     # Start Build the parameters to pass on the Event Client
                     start = UTCDateTime(station.start) if station.start else t0
@@ -655,25 +658,25 @@ class ArcLinkRequestBuilder(BaseBuilder):
 
                     try:
                         events = self.fdsn_client.get_events(**kwargsevent)
-                    except FDSNException,e:
+                    except fdsn.header.FDSNException,e:
                         events = None
 
                     if events is None or len(events) < 0:
-                        print >>sys.stderr,"  No Events Found."
+                        print("  No Events Found.",file=sys.stderr)
                         continue
 
                     # Event loop
                     for event in events:
                         try:
                             (origin, magnitude) = self.getOrigin(event)
-                            print >>sys.stderr,"  Working on origin: %s" % str(origin.time),
+                            print("  Working on origin: %s" % str(origin.time), end="", file=sys.stderr)
                             self.build(lines,
                                        network, station, origin, magnitude,
                                        phaselist, phasename,
                                        targetSamplingRate, allowedGainCodes, timeRange)
-                            print >>sys.stderr,"OK!"
+                            print("OK!", file=sys.stderr)
                         except NextItem,e:
-                            print >>sys.stderr,"  Skipping: %s" % str(e)
+                            print("  Skipping: %s" % str(e), file=sys.stderr)
                             continue
 
         request = self.organize_by_station(lines)
@@ -687,20 +690,20 @@ class RequestBuilder(BaseBuilder):
         d = False
 
         if isinstance(event_serverorurl, str):
-            self.e_fdsn_client = fClient(event_serverorurl, debug = d)
-        elif isinstance(event_serverorurl, fClient):
+            self.e_fdsn_client = fdsn.Client(event_serverorurl, debug = d)
+        elif isinstance(event_serverorurl, fdsn.client):
             self.e_fdsn_client = event_serverorurl
         else:
             raise BadParameter("Invalid event_serverorurl object, expected String address of fdsnClient Class")
 
 
         if station_serverorurl == None:
-            print "Same Server for Station as Event"
+            print("Same Server for Station as Event")
             self.s_fdsn_client = self.e_fdsn_client
         else:
             if isinstance(station_serverorurl, str):
-                self.s_fdsn_client = fClient(station_serverorurl, debug = d)
-            elif isinstance(station_serverorurl, fClient):
+                self.s_fdsn_client = fdsn.Client(station_serverorurl, debug = d)
+            elif isinstance(station_serverorurl, fdsn.client):
                 self.s_fdsn_client = station_serverorurl
             else:
                 raise BadParameter("Invalid station_serverorurl object, expected String address of fdsnClient Class")
@@ -748,7 +751,7 @@ class RequestBuilder(BaseBuilder):
             elif channel.code[-1] == "E" or channel.code[-1] == "2":
                 e = self.__chooseFDSN(e, channel, targetsps, instcode)
 #             else:
-#                 print >>sys.stderr, "Unknow channel %s.%s" % (channel.location_code, channel.code)
+#                 print("Unknow channel %s.%s" % (channel.location_code, channel.code), file=sys.stderr)
 
         if z[0] is None or n[0] is None or e[0] is None:
             raise NextItem("No Z, N or E channel(s) found")
@@ -784,7 +787,7 @@ class RequestBuilder(BaseBuilder):
                                           distanceRange)
 
         (phasename, phaselist) = self.resolve_phasenames(phasesOrPhaseGroup)
-        print >>sys.stderr,"Searching using: %s %s" % (phasename, phaselist)
+        print("Searching using: %s %s" % (phasename, phaselist), file=sys.stderr)
 
         
         # List of request lines
@@ -813,15 +816,15 @@ class RequestBuilder(BaseBuilder):
                 inventory = None
 
             if inventory is None or len(inventory.networks) == 0:
-                print >>sys.stderr,"No stations for pattern: %s.%s" % (net, sta)
+                print("No stations for pattern: %s.%s" % (net, sta), file=sys.stderr)
                 continue
 
             # On networks found
-            print >>sys.stderr,"Stations for pattern: %s.%s" % (net,sta)
+            print("Stations for pattern: %s.%s" % (net,sta), file=sys.stderr)
             for network in inventory.networks:
                 # On Stations found
                 for station in network.stations:
-                    print >>sys.stderr,"\n Working on station %s.%s" % (network.code, station.code)
+                    print("\n Working on station %s.%s" % (network.code, station.code), file=sys.stderr)
 
                     evsdate = t0
                     if station.start_date and station.start_date > evsdate: evsdate = station.start_date
@@ -846,30 +849,30 @@ class RequestBuilder(BaseBuilder):
                             try:
                                 events = self.e_fdsn_client.get_events(**kwargsevent)
                             except socket.timeout:
-                                print 'Failed . try %d' % tryid
+                                print('Failed . try %d' % tryid)
                                 tryid = tryid + 1
                                 pass
                         if events == "INVALID": events = None
-                    except FDSNException,e:
+                    except fdsn.header.FDSNException,e:
                         events = None
 
                     # Event loop
                     if events is None or len(events) < 0:
-                        print >>sys.stderr,"  No Events Found."
+                        print("  No Events Found.", file=sys.stderr)
                         continue
 
                     for event in events:
                         try:
                             (origin, magnitude) = self.getOrigin(event)
 
-                            print >>sys.stderr,"  Working on origin: %s" % str(origin.time),
+                            print("  Working on origin: %s" % str(origin.time), end="", file=sys.stderr)
                             self.build(lines,
                                        network, station, origin, magnitude,
                                        phaselist, phasename,
                                        targetSamplingRate, allowedGainCodes, timeRange)
-                            print >>sys.stderr,"OK!"
+                            print("OK!", file=sys.stderr)
                         except NextItem,e:
-                            print >>sys.stderr,"  Skipping: %s" % str(e)
+                            print("  Skipping: %s" % str(e), file=sys.stderr)
                             continue
 
         request = self.organize_by_station(lines)
@@ -889,7 +892,7 @@ class RequestBuilder(BaseBuilder):
         lines = []
 
         (phasename, phaselist) = self.resolve_phasenames(phasesOrPhaseGroup)
-        print >>sys.stderr,"Searching using: %s %s" % (phasename, phaselist)
+        print("Searching using: %s %s" % (phasename, phaselist), file=sys.stderr)
 
         if networkStationCodes is None:
             networkStationCodes = [ "*.*" ]
@@ -914,9 +917,9 @@ class RequestBuilder(BaseBuilder):
             events = self.e_fdsn_client.get_events(**kwargsevent)
             if self.plotevents:
                 events.plot()
-            print >>sys.stderr,"Found %d events." % len(events)
-        except FDSNException:
-            print >>sys.stderr,"No events found for the given parameters."
+            print("Found %d events." % len(events), file=sys.stderr)
+        except fdsn.header.FDSNException:
+            print("No events found for the given parameters.", file=sys.stderr)
             return None
 
         # Event loop
@@ -924,10 +927,10 @@ class RequestBuilder(BaseBuilder):
             try:
                 (origin, magnitude) = self.getOrigin(event)
             except NextItem,e:
-                print >>sys.stderr,"Skipping Origin: %s" % str(e)
+                print("Skipping Origin: %s" % str(e), file=sys.stderr)
                 continue
 
-            print >>sys.stderr,"Working on origin: %s" % str(origin.time)
+            print("Working on origin: %s" % str(origin.time), file=sys.stderr)
 
             kwargsstation = self.fill_kwargsstation((origin.time - 86400),
                                                       (origin.time + 86400),
@@ -943,26 +946,26 @@ class RequestBuilder(BaseBuilder):
 
                 try:
                     inventory = self.s_fdsn_client.get_stations(**kwargsstation)
-                except FDSNException,e:
+                except fdsn.header.FDSNException,e:
                     inventory = None
 
                 if inventory is None or len(inventory.networks) == 0:
-                    print >>sys.stderr,"\n No stations for pattern: %s.%s" % (net, sta)
+                    print("\n No stations for pattern: %s.%s" % (net, sta), file=sys.stderr)
                     continue
 
-                print >>sys.stderr,"\n Stations for pattern: %s.%s" % (net,sta)
+                print("\n Stations for pattern: %s.%s" % (net,sta), file=sys.stderr)
                 # Event loop
                 for network in inventory.networks:
                     for station in network.stations:
                         try:
-                            print >>sys.stderr,"  Working on station %s.%s " % (network.code, station.code),
+                            print("  Working on station %s.%s " % (network.code, station.code), end="", file=sys.stderr)
                             self.build(lines,
                                        network, station, origin, magnitude,
                                        phaselist, phasename,
                                        targetSamplingRate, allowedGainCodes, timeRange)
-                            print >>sys.stderr,"OK!"
+                            print("OK!", file=sys.stderr)
                         except NextItem, e:
-                            print >>sys.stderr,"\n  Skipping: %s" % str(e)
+                            print("\n  Skipping: %s" % str(e), file=sys.stderr)
 
         request = self.organize_by_event(lines)
 
