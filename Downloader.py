@@ -1,8 +1,11 @@
-from obspy import fdsn
+from __future__ import division, print_function
+
+from obspy.clients import fdsn
+from obspy import read as oREAD, Stream
+
 import shutil, StringIO, os, sys
 from seiscomp.arclink.manager import ArclinkManager, ArclinkError, arclink_status_string
 from Savers import Saver
-from obspy.core import read as oREAD, Stream
 
 class BaseFetcher(object):
     pass
@@ -19,7 +22,7 @@ class FDSNFetcher(BaseFetcher):
             raise Exception("Invalid parameter hostorclient, type missmatch.")
 
         if allinone:
-            print >>sys.stderr,"This is only a compatibility parameter, will be ignored"
+            print("This is only a compatibility parameter, will be ignored", file=sys.stderr)
 
         self._all_in_one = allinone
         self._merge = merge
@@ -34,11 +37,11 @@ class FDSNFetcher(BaseFetcher):
                         traces.merge(method=1, fill_value="interpolate")
                     stream += traces
                 except fdsn.header.FDSNException,e:
-                    print "%s.%s.%s.%s %s" % (net,sta,loc,cha,str(e))
+                    print("%s.%s.%s.%s %s" % (net,sta,loc,cha,str(e)), file=sys.stderr)
                     continue
                 except AttributeError,e:
                     # This is a fix for the client
-                    print "%s.%s.%s.%s %s" % (net,sta,loc,cha,str(e))
+                    print("%s.%s.%s.%s %s" % (net,sta,loc,cha,str(e)), file=sys.stderr)
                     continue
         return stream
 
@@ -64,9 +67,9 @@ class Sc3ArclinkFetcher(BaseFetcher):
             for line in vol.line:
                 if line.status != 3:
                     if message:
-                        print >>sys.stderr,message
+                        print(message,file=sys.stderr)
                         message = None
-                    print >>sys.stderr,"   erro on line %s reason %s" % (line.content,arclink_status_string(line.status))
+                    print("   erro on line %s reason %s" % (line.content,arclink_status_string(line.status)), file=sys.stderr)
 
     def _download(self, request, stream):
         datastream = StringIO.StringIO()
@@ -81,9 +84,9 @@ class Sc3ArclinkFetcher(BaseFetcher):
             request.download_data(datastream, block = True, purge = True)
 
             if datastream.pos == 0:
-                print >>sys.stderr,"  No Data Returned for Requests:"
+                print("  No Data Returned for Requests:", file=sys.stderr)
                 for line in request.content:
-                    print >>sys.stderr,"  %s.%s.%s.%s %s %s" % (line.net, line.sta, line.loc, line.cha, line.start_time, line.end_time)
+                    print("  %s.%s.%s.%s %s %s" % (line.net, line.sta, line.loc, line.cha, line.start_time, line.end_time), file=sys.stderr)
                 return self._am.new_request("WAVEFORM")
 
             datastream.seek(0)
@@ -99,7 +102,7 @@ class Sc3ArclinkFetcher(BaseFetcher):
         except ArclinkError,e:
             self._logquery(request.status())
             request.purge()
-            print "  Arclink Message: %s" % str(e)
+            print("  Arclink Message: %s" % str(e))
 
         return self._am.new_request("WAVEFORM")
 
@@ -119,12 +122,12 @@ class Sc3ArclinkFetcher(BaseFetcher):
 
             if not self._all_in_one or len(rq.content) > 400:
                 if len(rq.content) > 400:
-                    print >>sys.stderr,"Downloading first %d lines of request" % len(rq.content)
+                    print("Downloading first %d lines of request" % len(rq.content), file=sys.stderr)
                 rq = self._download(rq, stream)
 
         if self._all_in_one:
             if len(rq.content) > 400:
-                print >>sys.stderr,"Attention, you are trying to ask for more than 400 lines of request !!!!"
+                print("Attention, you are trying to ask for more than 400 lines of request !!!!", file=sys.stderr)
 
             self._download(rq, stream)
 
@@ -158,7 +161,7 @@ class Downloader(object):
             try:
                 os.mkdir(basedir)
             except OSError,e:
-                print >>sys.stderr,"Failed to initialize the base folder (%s)." % (str(e))
+                print("Failed to initialize the base folder (%s)." % (str(e)), file=sys.stderr)
         self._basedir = basedir
 
     def isgood(self):
@@ -168,13 +171,13 @@ class Downloader(object):
     def _resume(self, key, items):
         i=0
         for item in items:
-            print >>sys.stderr,"  %03d) T1-T2: %s-%s Total: %d s Station: %s.%s - %d Channels" % (i,
+            print("  %03d) T1-T2: %s-%s Total: %d s Station: %s.%s - %d Channels" % (i,
                                                                                        item[0],
                                                                                        item[1],
                                                                                        item[1]-item[0],
                                                                                        item[2],
                                                                                        item[3],
-                                                                                       len(item[4]))
+                                                                                       len(item[4])), file=sys.stderr)
             i+=1
 
     def _buildfolder(self, key):
@@ -210,18 +213,18 @@ class Downloader(object):
 
     def work(self, requests):
 
-        print >>sys.stderr,"\n\nWorking on %d requests" % len(requests)
+        print("\n\nWorking on %d requests" % len(requests), file=sys.stderr)
 
         # Ensure folders exists
         (removed, created) = self._makefolders(requests)
-        print >>sys.stderr," Removed %d folders and created %d folder in %s" % (removed, created, self._basedir)
+        print(" Removed %d folders and created %d folder in %s" % (removed, created, self._basedir), file=sys.stderr)
 
         # Work on request base
         for key in requests.keys():
             if key == "STATUS": continue
 
             request = requests[key]
-            print >>sys.stderr,"\n %s has %d events selected" % (key,len(request))
+            print("\n %s has %d events selected" % (key,len(request)), file=sys.stderr)
 
             # Check resume
             if self._show_resume:
@@ -231,7 +234,7 @@ class Downloader(object):
             if self._fetcher:
                 data = self._fetcher.work(key, request)
                 if data == None or len(data) == 0:
-                    print >>sys.stderr,"  No Data for Node %s" % key
+                    print("  No Data for Node %s" % key, file=sys.stderr)
 
                 if data and self.__saveraw:
                     data.write(os.path.join(self._basedir, "RAW", "%s.mseed" % key), "MSEED")
@@ -240,4 +243,4 @@ class Downloader(object):
                     for extracter in self._extracter:
                         if extracter is None: continue
                         result = extracter.work(self._buildfolder(key), key, request, data)
-                        print >>sys.stderr,"  Wrote (In:%d Assoc:%d nWin:%d rms:%d 3c:%d) -- %d files" % result 
+                        print("  Wrote (In:%d Assoc:%d nWin:%d rms:%d 3c:%d) -- %d files" % result, file=sys.stderr)
