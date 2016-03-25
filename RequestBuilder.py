@@ -482,6 +482,48 @@ class BaseBuilder(object):
         return
 
     @staticmethod
+    def map_request(request, add_lines = False):
+        from matplotlib import pyplot as plt
+        from mpl_toolkits.basemap import Basemap
+
+        m = Basemap(projection='robin', lon_0=0, resolution='c')
+        
+        m.fillcontinents(color='gray',lake_color='white')
+        m.drawmapboundary(fill_color='white')
+        m.drawmeridians(range(0, 360, 30))
+        m.drawparallels(range(-90, 90, 30))
+        
+        evn, stn, evs, sts = [ ], [ ], [ ], [ ]
+        for k in request:
+            for item in request[k]:
+                st = item[5]
+                ev = item[6]
+                eid = ev['eventId']
+                sid = st['stationId']
+                elon = float(ev['longitude'])
+                elat = float(ev['latitude'])
+                slon = float(st['longitude'])
+                slat = float(st['latitude'])
+                ex, ey = m(elon, elat)
+                sx, sy = m(slon, slat)
+                if eid not in evn:
+                    evn.append(eid)
+                    evs.append((ex,ey))
+                if sid not in stn:
+                    stn.append(sid)
+                    sts.append((sx,sy))
+                if add_lines:
+                    m.plot([ex, sx], [ey, sy], linewidth=2, color='k')
+        
+        for ex,ey in evs:
+            m.plot(ex, ey, 'b*', markersize = 16, color = 'g')
+        for sx,sy in sts:
+            m.plot(sx, sy, 'b^', markersize = 16, color = 'r')
+        
+        plt.title('Request Container')
+        plt.show()
+
+    @staticmethod
     def load_request(filename):
         if filename is None or not os.path.isfile(filename):
             raise Exception("Cannot read file, %s" % filename)
@@ -508,6 +550,7 @@ class BaseBuilder(object):
         iofile.close()
 
 class ArcLinkFDSNRequestBuilder(BaseBuilder):
+    '''Build a request using a FDSN server for events and an ArcLink for stations metadata'''
     def __init__(self, fdsnURL, arclinkURL):
         BaseBuilder.__init__(self)
         (host,port,user) = arclinkURL.strip().split(":")
@@ -584,6 +627,7 @@ class ArcLinkFDSNRequestBuilder(BaseBuilder):
                    stationRestrictionArea = None,
                    distanceRange = None
                    ):
+        '''Search initially by events, later, find stations related to the events time and distance specified.'''
 
         # List of request lines
         lines = []
@@ -663,6 +707,7 @@ class ArcLinkFDSNRequestBuilder(BaseBuilder):
                     magnitudeRange = None,
                     depthRange = None,
                     distanceRange = None):
+        '''Search initially by stations, later, find events related to the stations time and distance specified.'''
 
         # List of request lines
         lines = []
@@ -740,6 +785,7 @@ class ArcLinkFDSNRequestBuilder(BaseBuilder):
         return request
 
 class RequestBuilder(BaseBuilder):
+    '''Build a request using a FDSN server for events and another for stations metadata'''
     def __init__(self, event_serverorurl, station_serverorurl = None):
         BaseBuilder.__init__(self)
 
@@ -831,6 +877,7 @@ class RequestBuilder(BaseBuilder):
                     magnitudeRange = None,
                     depthRange = None,
                     distanceRange = None):
+        '''Search initially by stations, later, find events related to the stations time and distance specified.'''
 
         (t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList, 
          networkStationList, stationRestrictionArea,
@@ -944,7 +991,7 @@ class RequestBuilder(BaseBuilder):
                    stationRestrictionArea = None,
                    distanceRange = None
                    ):
-
+        '''Search initially by events, later, find stations related to the events time and distance specified.'''
         lines = []
 
         (phasename, phaselist) = self._resolve_phasenames(phasesOrPhaseGroupList)
