@@ -25,11 +25,6 @@ from Downloader import Downloader, FDSNFetcher, Sc3ArclinkFetcher
 from Savers import SacSaver, QSaver , MSSaver
 import os
 
-#fetcher = FDSNFetcher("http://www.moho.iag.usp.br/", allinone = False, merge = True)
-#fetcher = Sc3ArclinkFetcher("seismaster:18001/oliveira@iag.usp.br", allinone = True, merge = False)
-#saver = QSaver(debug = False)
-#saver.enableTimeWindowCheck(30.0, 120.0)
-
 def test_save_load():
     print(" ** Test Request Builder **")
     print(" ** Test Load - Save     **")
