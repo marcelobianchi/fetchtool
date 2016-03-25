@@ -65,7 +65,7 @@ class Saver(object):
 
         # Tag traces that correspond to an phase arrival (associate event - trace)
         linecount = 0
-        for (t0, t1, net, sta, channels, sa, ev, evp) in request:
+        for (_, _, _, _, _, sa, ev, evp) in request:
             for trace in stream:
                 ts = trace.stats.starttime
                 te = trace.stats.endtime
@@ -186,7 +186,7 @@ class Saver(object):
     def __initParameters(self):
         parameters = AttribDict({})
 
-         # TimeWindow
+        # TimeWindow
         parameters.tw = AttribDict({})
         parameters.tw.prephasevalue = None
         parameters.tw.postphasevalue = None

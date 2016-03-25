@@ -511,8 +511,8 @@ class ArcLinkFDSNRequestBuilder(BaseBuilder):
         n = (None, None, None, None, None, None)
         e = (None, None, None, None, None, None)
 
-        for (lcode,lstart,location) in unWrapNSLC(station.sensorLocation):
-            for (ccode,cstart,channel) in unWrapNSLC(location.stream):
+        for (_, _, location) in unWrapNSLC(station.sensorLocation):
+            for (_, _, channel) in unWrapNSLC(location.stream):
                 if t0 < channel.start or (channel.end is not None and t0 > channel.end):
                     continue
     
@@ -603,8 +603,8 @@ class ArcLinkFDSNRequestBuilder(BaseBuilder):
 
                 print("\n Stations for pattern: %s.%s" % (net,sta), file=sys.stderr)
                 # Station loop
-                for (ncode, nstart, network) in  unWrapNSLC(inventory.network):
-                    for (scode, sstart, station) in  unWrapNSLC(network.station):
+                for (_, _, network) in  unWrapNSLC(inventory.network):
+                    for (_, _, station) in  unWrapNSLC(network.station):
                         try:
                             print("  Working on station %s.%s " % (network.code, station.code), end="", file=sys.stderr)
                             self.build(lines,
@@ -660,8 +660,8 @@ class ArcLinkFDSNRequestBuilder(BaseBuilder):
 
             print("Stations for pattern: %s.%s" % (net,sta), file=sys.stderr)
             # Station Loop
-            for (ncode, nstart, network) in  unWrapNSLC(inventory.network):
-                for (scode, sstart, station) in  unWrapNSLC(network.station):
+            for (_, _, network) in  unWrapNSLC(inventory.network):
+                for (_, _, station) in  unWrapNSLC(network.station):
                     print("\n Working on station %s.%s" % (network.code, station.code), file=sys.stderr)
 
                     # Start Build the parameters to pass on the Event Client

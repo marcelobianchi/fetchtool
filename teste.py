@@ -139,11 +139,11 @@ def test_arb_station():
 
 if __name__ == "__main__":
     test_rb_event()
-    #test_rb_station()
+    test_rb_station()
     
-    #test_arb_event()
-    #test_arb_station()
+    test_arb_event()
+    test_arb_station()
     
-    #test_save_load()
+    test_save_load()
     
     sys.exit()
