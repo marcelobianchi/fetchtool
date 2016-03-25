@@ -575,12 +575,12 @@ class ArcLinkFDSNRequestBuilder(BaseBuilder):
     Request Builder Methods
     '''
 
-    def eventBased(self, t0, t1, targetSamplingRate, allowedGainCodes, timeRange, phasesOrPhaseGroup,
+    def eventBased(self, t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList,
                    eventRestrictionArea,
                    magnitudeRange,
                    depthRange,
 
-                   networkStationCodes = None,
+                   networkStationList = None,
                    stationRestrictionArea = None,
                    distanceRange = None
                    ):
@@ -588,17 +588,17 @@ class ArcLinkFDSNRequestBuilder(BaseBuilder):
         # List of request lines
         lines = []
 
-        (phasename, phaselist) = self._resolve_phasenames(phasesOrPhaseGroup)
+        (phasename, phaselist) = self._resolve_phasenames(phasesOrPhaseGroupList)
         print("Searching using: %s %s" % (phasename, phaselist), file=sys.stderr)
 
-        if networkStationCodes is None:
-            networkStationCodes = [ "*.*" ]
+        if networkStationList is None:
+            networkStationList = [ "*.*" ]
 
-        (t0, t1, targetSamplingRate, allowedGainCodes, timeRange, phasesOrPhaseGroup, 
-        networkStationCodes, stationRestrictionArea,
+        (t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList, 
+        networkStationList, stationRestrictionArea,
         eventRestrictionArea, magnitudeRange, depthRange,
-        distanceRange) = self._check_param(t0, t1, targetSamplingRate, allowedGainCodes, timeRange, phasesOrPhaseGroup, 
-                                          networkStationCodes, stationRestrictionArea,
+        distanceRange) = self._check_param(t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList, 
+                                          networkStationList, stationRestrictionArea,
                                           eventRestrictionArea,
                                           magnitudeRange,
                                           depthRange,
@@ -629,7 +629,7 @@ class ArcLinkFDSNRequestBuilder(BaseBuilder):
 
             print("Working on origin: %s" % str(origin.time), file=sys.stderr)
 
-            for code in networkStationCodes:
+            for code in networkStationList:
                 (net, sta) = code.split(".")
                 inventory = self.__arclink_manager.get_inventory(net, sta, "*", "*", (origin.time - 86400).datetime, (origin.time + 86400).datetime)
 
@@ -646,7 +646,7 @@ class ArcLinkFDSNRequestBuilder(BaseBuilder):
                             self._build(lines,
                                          network, station, origin, magnitude,
                                          phaselist, phasename,
-                                         targetSamplingRate, allowedGainCodes, timeRange)
+                                         targetSamplingRate, allowedGainList, dataWindowRange)
                             print("OK!", file=sys.stderr)
                         except NextItem, e:
                             print("\n  Skipping: %s" % str(e), file=sys.stderr)
@@ -655,8 +655,8 @@ class ArcLinkFDSNRequestBuilder(BaseBuilder):
 
         return request
 
-    def stationBased(self, t0, t1, targetSamplingRate, allowedGainCodes, timeRange, phasesOrPhaseGroup,
-                    networkStationCodes,
+    def stationBased(self, t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList,
+                    networkStationList,
                     stationRestrictionArea,
 
                     eventRestrictionArea = None,
@@ -667,26 +667,26 @@ class ArcLinkFDSNRequestBuilder(BaseBuilder):
         # List of request lines
         lines = []
 
-        (phasename, phaselist) = self._resolve_phasenames(phasesOrPhaseGroup)
+        (phasename, phaselist) = self._resolve_phasenames(phasesOrPhaseGroupList)
         print("Searching using: %s %s" % (phasename, phaselist), file=sys.stderr)
 
-        (t0, t1, targetSamplingRate, allowedGainCodes, timeRange, phasesOrPhaseGroup, 
-        networkStationCodes, stationRestrictionArea,
+        (t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList, 
+        networkStationList, stationRestrictionArea,
         eventRestrictionArea, magnitudeRange, depthRange,
-        distanceRange) = self._check_param(t0, t1, targetSamplingRate, allowedGainCodes, timeRange, phasesOrPhaseGroup, 
-                                          networkStationCodes, stationRestrictionArea,
+        distanceRange) = self._check_param(t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList, 
+                                          networkStationList, stationRestrictionArea,
                                           eventRestrictionArea,
                                           magnitudeRange,
                                           depthRange,
                                           distanceRange)
 
         # Check if network/station code is a string -> list
-        if isinstance(networkStationCodes, str):
-            networkStationCodes = [ networkStationCodes ]
+        if isinstance(networkStationList, str):
+            networkStationList = [ networkStationList ]
 
         ## Start the Loop
         # On the given station patterns
-        for code in networkStationCodes:
+        for code in networkStationList:
             (net, sta) = code.split(".")
             inventory = self.__arclink_manager.get_inventory(net, sta, "*", "*", t0.datetime, t1.datetime)
 
@@ -729,7 +729,7 @@ class ArcLinkFDSNRequestBuilder(BaseBuilder):
                             self._build(lines,
                                        network, station, origin, magnitude,
                                        phaselist, phasename,
-                                       targetSamplingRate, allowedGainCodes, timeRange)
+                                       targetSamplingRate, allowedGainList, dataWindowRange)
                             print("OK!", file=sys.stderr)
                         except NextItem,e:
                             print("  Skipping: %s" % str(e), file=sys.stderr)
@@ -823,8 +823,8 @@ class RequestBuilder(BaseBuilder):
     Request Builder Methods
     '''
 
-    def stationBased(self, t0, t1, targetSamplingRate, allowedGainCodes, timeRange, phasesOrPhaseGroup,
-                    networkStationCodes,
+    def stationBased(self, t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList,
+                    networkStationList,
                     stationRestrictionArea,
 
                     eventRestrictionArea = None,
@@ -832,17 +832,17 @@ class RequestBuilder(BaseBuilder):
                     depthRange = None,
                     distanceRange = None):
 
-        (t0, t1, targetSamplingRate, allowedGainCodes, timeRange, phasesOrPhaseGroup, 
-         networkStationCodes, stationRestrictionArea,
+        (t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList, 
+         networkStationList, stationRestrictionArea,
          eventRestrictionArea, magnitudeRange, depthRange,
-         distanceRange) = self._check_param(t0, t1, targetSamplingRate, allowedGainCodes, timeRange, phasesOrPhaseGroup, 
-                                          networkStationCodes, stationRestrictionArea,
+         distanceRange) = self._check_param(t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList, 
+                                          networkStationList, stationRestrictionArea,
                                           eventRestrictionArea,
                                           magnitudeRange,
                                           depthRange,
                                           distanceRange)
 
-        (phasename, phaselist) = self._resolve_phasenames(phasesOrPhaseGroup)
+        (phasename, phaselist) = self._resolve_phasenames(phasesOrPhaseGroupList)
         print("Searching using: %s %s" % (phasename, phaselist), file=sys.stderr)
 
         
@@ -856,12 +856,12 @@ class RequestBuilder(BaseBuilder):
                                                 None, None, None)
 
         # Check if network/station code is a string -> list
-        if isinstance(networkStationCodes, str):
-            networkStationCodes = [ networkStationCodes ]
+        if isinstance(networkStationList, str):
+            networkStationList = [ networkStationList ]
 
         ## Start the Loop
         # On the given station patterns
-        for code in networkStationCodes:
+        for code in networkStationList:
             (net, sta) = code.split(".")
             kwargsstation['net'] = net
             kwargsstation['sta'] = sta
@@ -925,7 +925,7 @@ class RequestBuilder(BaseBuilder):
                             self._build(lines,
                                        network, station, origin, magnitude,
                                        phaselist, phasename,
-                                       targetSamplingRate, allowedGainCodes, timeRange)
+                                       targetSamplingRate, allowedGainList, dataWindowRange)
                             print("OK!", file=sys.stderr)
                         except NextItem,e:
                             print("  Skipping: %s" % str(e), file=sys.stderr)
@@ -935,29 +935,29 @@ class RequestBuilder(BaseBuilder):
 
         return request
 
-    def eventBased(self, t0, t1, targetSamplingRate, allowedGainCodes, timeRange, phasesOrPhaseGroup,
+    def eventBased(self, t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList,
                    eventRestrictionArea,
                    magnitudeRange,
                    depthRange,
 
-                   networkStationCodes = None,
+                   networkStationList = None,
                    stationRestrictionArea = None,
                    distanceRange = None
                    ):
 
         lines = []
 
-        (phasename, phaselist) = self._resolve_phasenames(phasesOrPhaseGroup)
+        (phasename, phaselist) = self._resolve_phasenames(phasesOrPhaseGroupList)
         print("Searching using: %s %s" % (phasename, phaselist), file=sys.stderr)
 
-        if networkStationCodes is None:
-            networkStationCodes = [ "*.*" ]
+        if networkStationList is None:
+            networkStationList = [ "*.*" ]
 
-        (t0, t1, targetSamplingRate, allowedGainCodes, timeRange, phasesOrPhaseGroup, 
-        networkStationCodes, stationRestrictionArea,
+        (t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList, 
+        networkStationList, stationRestrictionArea,
         eventRestrictionArea, magnitudeRange, depthRange,
-        distanceRange) = self._check_param(t0, t1, targetSamplingRate, allowedGainCodes, timeRange, phasesOrPhaseGroup, 
-                                          networkStationCodes, stationRestrictionArea,
+        distanceRange) = self._check_param(t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList, 
+                                          networkStationList, stationRestrictionArea,
                                           eventRestrictionArea,
                                           magnitudeRange,
                                           depthRange,
@@ -995,7 +995,7 @@ class RequestBuilder(BaseBuilder):
                                                       origin.longitude,
                                                       distanceRange)
 
-            for code in networkStationCodes:
+            for code in networkStationList:
                 (net, sta) = code.split(".")
                 kwargsstation['net'] = net
                 kwargsstation['sta'] = sta
@@ -1018,7 +1018,7 @@ class RequestBuilder(BaseBuilder):
                             self._build(lines,
                                        network, station, origin, magnitude,
                                        phaselist, phasename,
-                                       targetSamplingRate, allowedGainCodes, timeRange)
+                                       targetSamplingRate, allowedGainList, dataWindowRange)
                             print("OK!", file=sys.stderr)
                         except NextItem, e:
                             print("\n  Skipping: %s" % str(e), file=sys.stderr)
@@ -1037,11 +1037,11 @@ if __name__ == "__main__":
     req = rb.eventBased(t0 = UTCDateTime("2007-01-01"),
                         t1 = UTCDateTime("2008-01-01"),
                         targetSamplingRate = 20.0,
-                        allowedGainCodes = ["H", "L"],
-                        timeRange = Range(-120, 600),
-                        phasesOrPhaseGroup = "pgroup",
+                        allowedGainList = ["H", "L"],
+                        dataWindowRange = Range(-120, 600),
+                        phasesOrPhaseGroupList = "pgroup",
 
-                        networkStationCodes = [ "TA.A*"],
+                        networkStationList = [ "TA.A*"],
                         stationRestrictionArea = AreaRange(-150.0, -90.0, 15.0, 60.0),
 
                         eventRestrictionArea = AreaRange(-35.0, -10.0, -55.0, -60.0),
