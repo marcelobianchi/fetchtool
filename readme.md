@@ -1,6 +1,6 @@
 # FetchTool
 
-FetchTool is a multi modular mass downloader tool for seismological data. It is aware of FDSN and ArcLink services for metadata and data download and saves data as SAC or Qfiles today.
+FetchTool is a multi modular mass downloader tool for seismological data. It is aware of FDSN and ArcLink services for metadata and data download and saves data as SAC, Qfiles or MSeed today.
 
 # Overview
 
@@ -20,7 +20,7 @@ The Downloader module can be instructed to save the RAW data obtained from the s
 
 ## Savers
 
-Saver modules are modules that enforces constrains in the data and save it to certain pre-estabilished directory structure. Main savers implemented are the SacSaver and QSaver. When saving the data they first fill in the headers with the maximum amount of available data. Also QSaver, prepares a SeismiHandler station file to easy the import of data into the program.
+Saver modules are modules that enforces constrains in the data and save it to certain pre-estabilished directory structure. Main savers implemented are the SacSaver, QSaver and a MSSaver. When saving the data they first fill in the headers with the maximum amount of available data. Also QSaver, prepares a SeismiHandler station file to easy the import of data into the program. MSSaver don't save any station or event information associated with the data.
 
 # About the Author
 
