@@ -1,3 +1,23 @@
+'''
+FetchTool Interactive, Mutli-module seismological mass downloader package.
+Copyright (C) 2015  Marcelo Bianchi <m.bianchi@iag.usp.br>
+
+This file is part of FetchTool.
+
+FetchTool is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+'''
+
 from __future__ import division, print_function
 
 from obspy.clients import fdsn
@@ -29,8 +49,8 @@ class FDSNFetcher(BaseFetcher):
 
     def work(self, key, items):
         stream = Stream()
-        for (t0, t1, net, sta, channels, sa, ev, evp) in items:
-            for (loc, cha, a, d) in channels:
+        for (t0, t1, net, sta, channels, _, _, _) in items:
+            for (loc, cha, _, _) in channels:
                 try:
                     traces = self._fc.get_waveforms(net,sta,loc,cha,t0,t1)
                     if self._merge:
@@ -115,9 +135,9 @@ class Sc3ArclinkFetcher(BaseFetcher):
         if self._merge: self._all_in_one = False
 
         # Go on
-        for (t0, t1, net, sta, channels, sa, ev, evp) in items:
+        for (t0, t1, net, sta, channels, _, _, _) in items:
 
-            for (location, channel, azimuth, dip) in channels:
+            for (location, channel, _, _) in channels:
                 rq.add(t0.datetime, t1.datetime, net, sta, channel, location)
 
             if not self._all_in_one or len(rq.content) > 400:
