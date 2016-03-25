@@ -17,8 +17,8 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
-
-import re,os,sys
+from __future__ import print_function, division
+import re, os, sys
 
 class ShStation(object):
     ''' Class to handle with STATINF.DAT files'''
@@ -77,7 +77,6 @@ class ShStation(object):
 
     def save(self, filename = None):
         if not filename and not self._modified: return
-        print >>sys.stderr,"Saving file ... "
         if filename:
             iofile = open(filename,"w")
         else:

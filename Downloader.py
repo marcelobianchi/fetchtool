@@ -96,7 +96,10 @@ class Sc3ArclinkFetcher(BaseFetcher):
 
         # Submit the request
         request.submit(self._host, self._user)
-
+        if request.error:
+            print("  Error while submiting Arclink Request: %s" % request.error, file=sys.stderr)
+            return self._am.new_request("WAVEFORM")
+        
         # Download the request
         try:
             request.wait()
@@ -151,16 +154,22 @@ class Sc3ArclinkFetcher(BaseFetcher):
 
             self._download(rq, stream)
 
-        return stream 
+        return stream
 
 class Downloader(object):
+    ''' Downloader: 
+        
+        Should receive a folder (basedir), a flag to allow replace a tree (replacetree) a flag 
+        to indicate that it should show a resume of operations (show_resume) and finally, should
+        be given a fetcher (fetcher) of type (BaseFetcher) and a list of extracters (extracter) of
+        type (Savers).'''
     def __init__(self, basedir,
                  replacetree = False,
-                 resume = False,
+                 show_resume = False,
                  fetcher = None,
                  extracter = None):
         self._basedir = None
-        self._show_resume = resume
+        self._show_resume = show_resume
         self._force = replacetree
         self.__saveraw= False
 
@@ -209,6 +218,7 @@ class Downloader(object):
 
         # Loop on request inside requests
         for key in requests.keys():
+            if key == "STATUS": continue
 
             # Find the folder
             _cfolder = self._buildfolder(key)
@@ -233,7 +243,7 @@ class Downloader(object):
 
     def work(self, requests):
 
-        print("\n\nWorking on %d requests" % len(requests), file=sys.stderr)
+        print("\n\nWorking on %d requests" % (len(requests) - 1), file=sys.stderr)
 
         # Ensure folders exists
         (removed, created) = self._makefolders(requests)
