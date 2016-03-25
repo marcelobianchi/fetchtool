@@ -26,7 +26,7 @@ Saver modules are modules that enforces constrains in the data and save it to ce
 
 The whole package was written by Marcelo Bianchi while working at the University of São Paulo. It uses the ObsPy package and ArcLink clients supplied by the SeisComP3 system. It is tested with ObsPy 1.0.
 
-For comments and question please address directly Marcelo Bianchi <m.bianchi@iag.usp.br>.
+For comments and question please address directly Marcelo Bianchi (<m.bianchi@iag.usp.br>).
 
 This is free software, under the GNU-GPL 3 license.
 
