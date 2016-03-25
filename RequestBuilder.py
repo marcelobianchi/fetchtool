@@ -486,42 +486,59 @@ class BaseBuilder(object):
         from matplotlib import pyplot as plt
         from mpl_toolkits.basemap import Basemap
 
-        m = Basemap(projection='robin', lon_0=0, resolution='c')
-        
-        m.fillcontinents(color='gray',lake_color='white')
-        m.drawmapboundary(fill_color='white')
-        m.drawmeridians(range(0, 360, 30))
-        m.drawparallels(range(-90, 90, 30))
-        
-        evn, stn, evs, sts = [ ], [ ], [ ], [ ]
+        keys = [ "ALL" ]
         for k in request:
-            for item in request[k]:
-                st = item[5]
-                ev = item[6]
-                eid = ev['eventId']
-                sid = st['stationId']
-                elon = float(ev['longitude'])
-                elat = float(ev['latitude'])
-                slon = float(st['longitude'])
-                slat = float(st['latitude'])
-                ex, ey = m(elon, elat)
-                sx, sy = m(slon, slat)
-                if eid not in evn:
-                    evn.append(eid)
-                    evs.append((ex,ey))
-                if sid not in stn:
-                    stn.append(sid)
-                    sts.append((sx,sy))
-                if add_lines:
-                    m.plot([ex, sx], [ey, sy], linewidth=2, color='k')
-        
-        for ex,ey in evs:
-            m.plot(ex, ey, 'b*', markersize = 16, color = 'g')
-        for sx,sy in sts:
-            m.plot(sx, sy, 'b^', markersize = 16, color = 'r')
-        
-        plt.title('Request Container')
-        plt.show()
+            if k == "STATUS": continue
+            keys.append(k)
+
+        def plot(showkey):
+            if showkey == "ALL":
+                showkey = None
+
+            m = Basemap(projection='robin', lon_0=0, resolution='c')
+            
+            m.fillcontinents(color='gray',lake_color='white')
+            m.drawmapboundary(fill_color='white')
+            m.drawmeridians(range(0, 360, 30))
+            m.drawparallels(range(-90, 90, 30))
+            
+            evn, stn, evs, sts = [ ], [ ], [ ], [ ]
+            for k in request:
+                if k == "STATUS": continue
+                if showkey is not None and k != showkey: continue
+                for item in request[k]:
+                    st = item[5]
+                    ev = item[6]
+                    eid = ev['eventId']
+                    sid = st['stationId']
+                    elon = float(ev['longitude'])
+                    elat = float(ev['latitude'])
+                    slon = float(st['longitude'])
+                    slat = float(st['latitude'])
+                    ex, ey = m(elon, elat)
+                    sx, sy = m(slon, slat)
+                    if eid not in evn:
+                        evn.append(eid)
+                        evs.append((ex,ey))
+                    if sid not in stn:
+                        stn.append(sid)
+                        sts.append((sx,sy))
+                    if add_lines:
+                        m.plot([ex, sx], [ey, sy], linewidth=1, color='k')
+            
+            for ex,ey in evs:
+                m.plot(ex, ey, 'b*', markersize = 16, color = 'g')
+            for sx,sy in sts:
+                m.plot(sx, sy, 'b^', markersize = 16, color = 'r')
+
+            plt.title('Request Container')
+            plt.show()
+
+        try:
+            from ipywidgets import interact
+            interact(plot, showkey = keys);
+        except ImportError:
+            plot( "ALL" )
 
     @staticmethod
     def load_request(filename):
