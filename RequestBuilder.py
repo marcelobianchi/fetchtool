@@ -107,6 +107,14 @@ class Range(object):
             pass
         return True
 
+    @staticmethod
+    def ALLMAGS():
+        return Range(0.0, 10.0)
+
+    @staticmethod
+    def ALLDEPTHS():
+        return Range(0.0, 1000.0)
+
 class AreaRange(object):
     def __init__(self, xmin, xmax, ymin, ymax):
         self.x = Range(xmin, xmax)
@@ -126,6 +134,10 @@ class AreaRange(object):
 
     def good(self, x, y):
         return self.x.good(x) and self.y.good(y)
+
+    @staticmethod
+    def WORLD():
+        return AreaRange(-180., 180., -90., 90)
 
 class BaseBuilder(object):
     def __init__(self):
@@ -568,11 +580,11 @@ class BaseBuilder(object):
 
 class ArcLinkFDSNRequestBuilder(BaseBuilder):
     '''Build a request using a FDSN server for events and an ArcLink for stations metadata'''
-    def __init__(self, fdsnURL, arclinkURL):
+    def __init__(self, fdsn_event_url, arclink_url):
         BaseBuilder.__init__(self)
-        (host,port,user) = arclinkURL.strip().split(":")
+        (host,port,user) = arclink_url.strip().split(":")
         self.__arclink_manager = ArclinkManager("%s:%s" % (host,port), user)
-        self.__fdsn_client = fdsn.Client(fdsnURL)
+        self.__fdsn_client = fdsn.Client(fdsn_event_url)
 
     '''
     ArcLink specific Methods
@@ -803,27 +815,27 @@ class ArcLinkFDSNRequestBuilder(BaseBuilder):
 
 class RequestBuilder(BaseBuilder):
     '''Build a request using a FDSN server for events and another for stations metadata'''
-    def __init__(self, event_serverorurl, station_serverorurl = None):
+    def __init__(self, fdsn_event_url, fdsn_station_url = None):
         BaseBuilder.__init__(self)
 
         d = False
 
-        if isinstance(event_serverorurl, str):
-            self.e_fdsn_client = fdsn.Client(event_serverorurl, debug = d)
-        elif isinstance(event_serverorurl, fdsn.client):
-            self.e_fdsn_client = event_serverorurl
+        if isinstance(fdsn_event_url, str):
+            self.e_fdsn_client = fdsn.Client(fdsn_event_url, debug = d)
+        elif isinstance(fdsn_event_url, fdsn.client):
+            self.e_fdsn_client = fdsn_event_url
         else:
             raise BadParameter("Invalid event_serverorurl object, expected String address of fdsnClient Class")
 
 
-        if station_serverorurl == None:
+        if fdsn_station_url == None:
             print("Same Server for Station as Event")
             self.s_fdsn_client = self.e_fdsn_client
         else:
-            if isinstance(station_serverorurl, str):
-                self.s_fdsn_client = fdsn.Client(station_serverorurl, debug = d)
-            elif isinstance(station_serverorurl, fdsn.client):
-                self.s_fdsn_client = station_serverorurl
+            if isinstance(fdsn_station_url, str):
+                self.s_fdsn_client = fdsn.Client(fdsn_station_url, debug = d)
+            elif isinstance(fdsn_station_url, fdsn.client):
+                self.s_fdsn_client = fdsn_station_url
             else:
                 raise BadParameter("Invalid station_serverorurl object, expected String address of fdsnClient Class")
 
