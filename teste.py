@@ -19,8 +19,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
 from obspy import UTCDateTime
-from RequestBuilder import AreaRange, Range
-from RequestBuilder import RequestBuilder, ArcLinkFDSNRequestBuilder
+from Builders import AreaRange, Range
+from Builders import FDSNBuilder, ArcLinkFDSNBuilder
 from Downloader import Downloader, FDSNFetcher, Sc3ArclinkFetcher
 from Savers import SacSaver, QSaver , MSSaver
 import os
@@ -28,7 +28,7 @@ import os
 def test_save_load():
     print(" ** Test Request Builder **")
     print(" ** Test Load - Save     **")
-    rb = RequestBuilder("IRIS")
+    rb = FDSNBuilder("IRIS")
     r = rb.eventBased(t0 = UTCDateTime("2014-01-01"),
                       t1 = UTCDateTime("2015-01-01"),
                       targetSamplingRate = 20.0,
@@ -54,7 +54,7 @@ def test_save_load():
 def test_rb_event():
     print(" ** Test Request Builder **")
     print(" ** Event Based **")
-    rb = RequestBuilder("IRIS")
+    rb = FDSNBuilder("IRIS")
     r = rb.eventBased(t0 = UTCDateTime("2014-01-01"),
                       t1 = UTCDateTime("2015-01-01"),
                       targetSamplingRate = 20.0,
@@ -75,7 +75,7 @@ def test_rb_event():
 def test_rb_station():
     print(" ** Test Request Builder **")
     print(" ** Station Based **")
-    rb = RequestBuilder("IRIS")
+    rb = FDSNBuilder("IRIS")
     r = rb.stationBased(t0 = UTCDateTime("2014-01-01"),
                       t1 = UTCDateTime("2015-01-01"),
                       targetSamplingRate = 20.0,
@@ -96,7 +96,7 @@ def test_rb_station():
 def test_arb_event():
     print(" ** Test ArcLink Request Builder **")
     print(" ** Event Based **")
-    arb = ArcLinkFDSNRequestBuilder("http://www.moho.iag.usp.br", "seisrequest.iag.usp.br:18001:m.bianchi@iag.usp.br")
+    arb = ArcLinkFDSNBuilder("http://www.moho.iag.usp.br", "seisrequest.iag.usp.br:18001:m.bianchi@iag.usp.br")
     r = arb.eventBased(t0 = UTCDateTime("2014-01-01"),
                       t1 = UTCDateTime("2015-01-01"),
                       targetSamplingRate = 20.0,
@@ -117,7 +117,7 @@ def test_arb_event():
 def test_arb_station():
     print(" ** Test ArcLink Request Builder **")
     print(" ** Station Based **")
-    arb = ArcLinkFDSNRequestBuilder("http://www.moho.iag.usp.br", "seisrequest.iag.usp.br:18001:m.bianchi@iag.usp.br")
+    arb = ArcLinkFDSNBuilder("http://www.moho.iag.usp.br", "seisrequest.iag.usp.br:18001:m.bianchi@iag.usp.br")
     r = arb.stationBased(t0 = UTCDateTime("2014-01-01"),
                           t1 = UTCDateTime("2015-01-01"),
                           targetSamplingRate = 20.0,
@@ -146,11 +146,11 @@ if __name__ == "__main__":
     
     print(" ** Test Request Builder **")
     print(" ** Show Request **")
-    ArcLinkFDSNRequestBuilder.show_request(r, False)
+    ArcLinkFDSNBuilder.show_request(r, False)
     
     print(" ** Test Request Builder **")
     print(" ** Show Request Compact **")
-    ArcLinkFDSNRequestBuilder.show_request(r)
+    ArcLinkFDSNBuilder.show_request(r)
     
     print(" ** Test Fetching **")
     print(" ** FDSN fetcher **")
@@ -162,7 +162,7 @@ if __name__ == "__main__":
                       replacetree=True,
                       show_resume = False,
                       fetcher = fetcher,
-                      extracter = None)
+                      saverlist = None)
     dl.work(r)
     print("\n\n")
 
@@ -176,7 +176,7 @@ if __name__ == "__main__":
                       replacetree=True,
                       show_resume = False,
                       fetcher = fetcher,
-                      extracter = None)
+                      saverlist = None)
     dl.work(r)
     print("\n\n")
     
@@ -194,7 +194,7 @@ if __name__ == "__main__":
                       replacetree=True,
                       show_resume = True,
                       fetcher = fetcher,
-                      extracter = [ assac, asq, asm1, asm2, asm3 ])
+                      saverlist = [ assac, asq, asm1, asm2, asm3 ])
     dl.enableSaveRaw()
     dl.work(re)
     
@@ -202,5 +202,5 @@ if __name__ == "__main__":
                       replacetree=True,
                       show_resume = True,
                       fetcher = fetcher,
-                      extracter = [ assac, asq, asm1, asm2, asm3 ])
+                      saverlist = [ assac, asq, asm1, asm2, asm3 ])
     dl.work(rs)

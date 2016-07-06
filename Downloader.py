@@ -161,13 +161,13 @@ class Downloader(object):
         
         Should receive a folder (basedir), a flag to allow replace a tree (replacetree) a flag 
         to indicate that it should show a resume of operations (show_resume) and finally, should
-        be given a fetcher (fetcher) of type (BaseFetcher) and a list of extracters (extracter) of
+        be given a fetcher (fetcher) of type (BaseFetcher) and a list of extracters (saverlist) of
         type (Savers).'''
     def __init__(self, basedir,
                  replacetree = False,
                  show_resume = False,
                  fetcher = None,
-                 extracter = None):
+                 saverlist = None):
         self._basedir = None
         self._show_resume = show_resume
         self._force = replacetree
@@ -177,12 +177,12 @@ class Downloader(object):
             raise Exception("Supplied fetcher %s is not a Fetcher." % str(fetcher))
         self._fetcher = fetcher
 
-        if not isinstance(extracter, list):
-            self._extracter = [ extracter ]
+        if not isinstance(saverlist, list):
+            self._savers = [ saverlist ]
         else:
-            self._extracter = extracter
+            self._savers = saverlist
 
-        for saver in self._extracter:
+        for saver in self._savers:
             if saver is not None and not isinstance(saver, Saver):
                 raise Exception("Extracter %s is not of type Saver Class" % str(saver))
 
@@ -269,8 +269,8 @@ class Downloader(object):
                 if data and self.__saveraw:
                     data.write(os.path.join(self._basedir, "RAW", "%s.mseed" % key), "MSEED")
 
-                if data and self._extracter:
-                    for extracter in self._extracter:
+                if data and self._savers:
+                    for extracter in self._savers:
                         if extracter is None: continue
                         result = extracter.work(self._buildfolder(key), key, request, data)
                         print("  Wrote (In:%d Assoc:%d nWin:%d rms:%d 3c:%d) -- %d files" % result, file=sys.stderr)

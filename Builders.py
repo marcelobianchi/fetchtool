@@ -578,7 +578,7 @@ class BaseBuilder(object):
         pickle.dump(request, iofile)
         iofile.close()
 
-class ArcLinkFDSNRequestBuilder(BaseBuilder):
+class ArcLinkFDSNBuilder(BaseBuilder):
     '''Build a request using a FDSN server for events and an ArcLink for stations metadata'''
     def __init__(self, fdsn_event_url, arclink_url):
         BaseBuilder.__init__(self)
@@ -813,7 +813,7 @@ class ArcLinkFDSNRequestBuilder(BaseBuilder):
 
         return request
 
-class RequestBuilder(BaseBuilder):
+class FDSNBuilder(BaseBuilder):
     '''Build a request using a FDSN server for events and another for stations metadata'''
     def __init__(self, fdsn_event_url, fdsn_station_url = None):
         BaseBuilder.__init__(self)
@@ -1105,7 +1105,7 @@ class RequestBuilder(BaseBuilder):
 
 if __name__ == "__main__":
 #     rb = ArcLinkRequestBuilder("IRIS","seisrequest.iag.usp.br:18001:m.bianchi@iag.usp.br")
-    rb = RequestBuilder("IRIS")
+    rb = FDSNBuilder("IRIS")
 
 #     req = rb.load_request("request.pik")
 
