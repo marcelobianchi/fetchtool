@@ -8,9 +8,9 @@ This is a modular package. You have 3 different types of modules to build your p
 
 Also, it should be easy in the future to complement already mass downloaded data with new acquired data.
 
-## Request Builder
+## Builders
 
-There are two different builders, the RequestBuilder that is a complete FDSN builder and an ArcLinkFDSNRequestBuilder, that reads events from FDSN and metadata from ArcLink server.
+There are two different builders, the FDSNBuilder that is a complete FDSN builder and an ArcLinkFDSNBuilder, that reads events from FDSN and metadata from ArcLink server.
 
 ## Downloader
 
