@@ -43,12 +43,30 @@ def test_save_load():
                       magnitudeRange = Range(6.5, 9.0),
                       depthRange = Range(0.0, 400.0),
                       distanceRange = None)
+
+    print("")
     filename="ev_africa"
-    if os.path.isfile(filename):
-        os.remove(filename)
-    rb.save_request(filename,r)
-    r = rb.load_request("%s" % filename)
-    print ("\n\n")
+    try:
+        ArcLinkFDSNBuilder.save_request(filename, r, True)
+        print(" Perfect request saved with overwrite = True")
+    except:
+        print(" Bad Bad Bad cannot save with overwrite == True")
+    
+    try:
+        ArcLinkFDSNBuilder.save_request(filename, r, False)
+        print(" Bad Bad Bad - request was overwritten with overwrite = False")
+    except:
+        print(" Perfect was request was not saved over with overwrite = False")
+    
+    try:
+        ArcLinkFDSNBuilder.save_request(filename, r, True)
+        print(" Perfect request saved with overwrite = True over the file.")
+    except:
+        print(" Bad Bad Bad cannot save with overwrite == True")
+    
+    os.unlink(filename)
+    print("")
+    
     return r
 
 def test_rb_event():

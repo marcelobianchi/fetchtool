@@ -585,7 +585,7 @@ class ArcLinkFDSNBuilder(BaseBuilder):
     '''Build a request using a FDSN server for events and an ArcLink for stations metadata'''
     def __init__(self, fdsn_event_url, arclink_url):
         BaseBuilder.__init__(self)
-        (host,port,user) = arclink_url.strip().split(":")
+        (host,port,user) = arclink_url.strip().replace("/",":").split(":")
         self.__arclink_manager = ArclinkManager("%s:%s" % (host,port), user)
         self.__fdsn_client = fdsn.Client(fdsn_event_url)
 

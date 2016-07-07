@@ -66,9 +66,10 @@ class FDSNFetcher(BaseFetcher):
         return stream
 
 class Sc3ArclinkFetcher(BaseFetcher):
-    def __init__(self, hostorclient = "seisrequest.iag.usp.br:18001/anonymous@unreal.plc", allinone = False, merge = False):
+    def __init__(self, hostorclient = "seisrequest.iag.usp.br:18001:anonymous@unreal.plc", allinone = False, merge = False):
         if isinstance(hostorclient, str):
-            (self._host, self._user) = hostorclient.split("/")
+            (host, port, self._user) = hostorclient.replace("/",":").split(":")
+            self._host = "%s:%s" % (host,port)
             self._am = ArclinkManager(self._host, self._user)
         elif isinstance(hostorclient, ArclinkManager):
             self._am = hostorclient
