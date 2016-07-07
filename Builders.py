@@ -567,8 +567,11 @@ class BaseBuilder(object):
         return request
 
     @staticmethod
-    def save_request(filename, request):
-        if filename is None or os.path.isfile(filename):
+    def save_request(filename, request, overwrite = False):
+        if filename is None:
+            raise Exception("Filename should not be empty")
+
+        if os.path.isfile(filename) and not overwrite:
             raise Exception("Will not overwrite file, %s" % filename)
 
         if request is None:
