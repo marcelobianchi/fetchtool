@@ -426,6 +426,78 @@ class BaseBuilder(object):
     ''' Static methods have underscore '''
 
     @staticmethod
+    def __x_list(data, fields, formats, validfields, formatrule, separator):
+        for f in formats:
+            if f in formatrule:
+                formatrule[f] = formats[f]
+            else:
+                raise Exception("Cannot change format for field %f" % f)
+        
+        for f in fields:
+            if f not in validfields:
+                raise Exception("Invalid field %f" % f)
+        
+        i = 1
+        for e in data:
+            ev = data[e]
+            first = True
+            for f in fields:
+                if not first: print(separator, end = "")
+                if f == "#":
+                    print(formatrule[f] % i, end = "")
+                else:
+                    print(formatrule[f] % ev[f],end = "")
+                first = False
+            print()
+            i += 1
+
+    @staticmethod
+    def station_list(request, fields = ["#", "stationId", "longitude", "latitude", "elevation"], separator = "\t", formats = { }):
+        validfields = ["#", "stationId", "longitude", "latitude", "elevation"]
+        formatrule     = {
+           "#": "%04d",
+           "stationId": "%s",
+           "longitude": "%+9.4f",
+           "latitude": "%+9.4f",
+           "elevation": "%6.2f",
+        }
+        
+        sts  = { }
+         
+        for key in request:
+            if key == "STATUS": continue
+            for line in request[key]:
+                (_, _, _, _, _, SI, _, _) = line
+                if SI.stationId not in sts:
+                    sts[SI.stationId] = SI
+        
+        BaseBuilder.__x_list(sts, fields, formats, validfields, formatrule, separator)
+
+    @staticmethod
+    def event_list(request, fields = ["#", "eventId", "time", "longitude", "latitude", "depth", "magnitude"], separator = "\t", formats = { }):
+        validfields = ["#", "eventId", "time", "longitude", "latitude", "depth", "magnitude"]
+        formatrule     = {
+           "#": "%04d",
+           "eventId": "%s",
+           "time": "%s",
+           "longitude": "%+9.4f",
+           "latitude": "%+9.4f",
+           "depth": "%6.1f",
+           "magnitude": "%3.1f"
+        }
+        
+        evs  = { }
+         
+        for key in request:
+            if key == "STATUS": continue
+            for line in request[key]:
+                (_, _, _, _, _, _, EI, _) = line
+                if EI.eventId not in evs:
+                    evs[EI.eventId] = EI
+        
+        BaseBuilder.__x_list(evs, fields, formats, validfields, formatrule, separator)
+
+    @staticmethod
     def filter_channels(request, allowedChannels = "Z"):
         for evk in request:
             ev = request[evk]
@@ -1108,29 +1180,34 @@ class FDSNBuilder(BaseBuilder):
 
 if __name__ == "__main__":
 #     rb = ArcLinkRequestBuilder("IRIS","seisrequest.iag.usp.br:18001:m.bianchi@iag.usp.br")
-    rb = FDSNBuilder("IRIS")
+#     rb = FDSNBuilder("IRIS")
 
 #     req = rb.load_request("request.pik")
 
-    # Call the stationBased
-    req = rb.eventBased(t0 = UTCDateTime("2007-01-01"),
-                        t1 = UTCDateTime("2008-01-01"),
-                        targetSamplingRate = 20.0,
-                        allowedGainList = ["H", "L"],
-                        dataWindowRange = Range(-120, 600),
-                        phasesOrPhaseGroupList = "pgroup",
-
-                        networkStationList = [ "TA.A*"],
-                        stationRestrictionArea = AreaRange(-150.0, -90.0, 15.0, 60.0),
-
-                        eventRestrictionArea = AreaRange(-35.0, -10.0, -55.0, -60.0),
-                        magnitudeRange = Range(6.2, 9.0),
-                        depthRange = Range(0.0, 400.0),
-                        distanceRange = None
-                        )
-
-    rb.show_request(req)
+#     Call the stationBased
+#     req = rb.eventBased(t0 = UTCDateTime("2007-01-01"),
+#                         t1 = UTCDateTime("2008-01-01"),
+#                         targetSamplingRate = 20.0,
+#                         allowedGainList = ["H", "L"],
+#                         dataWindowRange = Range(-120, 600),
+#                         phasesOrPhaseGroupList = "pgroup",
+# 
+#                         networkStationList = [ "TA.A*"],
+#                         stationRestrictionArea = AreaRange(-150.0, -90.0, 15.0, 60.0),
+# 
+#                         eventRestrictionArea = AreaRange(-35.0, -10.0, -55.0, -60.0),
+#                         magnitudeRange = Range(6.2, 9.0),
+#                         depthRange = Range(0.0, 400.0),
+#                         distanceRange = None
+#                         )
+# 
+#     rb.show_request(req)
 
 #     rb.save_request("request.pik", req)
 #     rb.show_request(req)
 
+#     rq = rb.load_request("xc-phase2")
+#     rb.event_list(rq, separator="\t")
+#     rb.station_list(rq, separator="\t")
+        
+        pass
