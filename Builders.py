@@ -426,7 +426,7 @@ class BaseBuilder(object):
     ''' Static methods have underscore '''
 
     @staticmethod
-    def __x_list(data, fields, formats, validfields, formatrule, separator):
+    def __x_list(data, fields, formats, validfields, formatrule, separator, destination):
         for f in formats:
             if f in formatrule:
                 formatrule[f] = formats[f]
@@ -442,17 +442,56 @@ class BaseBuilder(object):
             ev = data[e]
             first = True
             for f in fields:
-                if not first: print(separator, end = "")
+                if not first: print(separator, end = "", file=destination)
                 if f == "#":
-                    print(formatrule[f] % i, end = "")
+                    print(formatrule[f] % i, end = "", file=destination)
                 else:
-                    print(formatrule[f] % ev[f],end = "")
+                    print(formatrule[f] % ev[f],end = "", file=destination)
                 first = False
-            print()
+            print(file=destination)
             i += 1
 
     @staticmethod
-    def station_list(request, fields = ["#", "stationId", "longitude", "latitude", "elevation"], separator = "\t", formats = { }):
+    def stev_list(request, fields= ["#", "stationId", "slongitude", "slatitude", "selevation", "eventId", "etime", "elongitude", "elatitude", "edepth", "emagnitude"], separator = "\t", formats = { }, destination = sys.stdout):
+        validfields = ["#", "stationId", "slongitude", "slatitude", "selevation", "eventId", "etime", "elongitude", "elatitude", "edepth", "emagnitude"]
+        formatrule     = {
+           "#": "%04d",
+           "stationId": "%s",
+           "slongitude": "%+9.4f",
+           "slatitude": "%+9.4f",
+           "selevation": "%6.2f",
+           "eventId": "%s",
+           "etime": "%s",
+           "elongitude": "%+9.4f",
+           "elatitude": "%+9.4f",
+           "edepth": "%6.1f",
+           "emagnitude": "%3.1f"
+        }
+        
+        evs  = { }
+         
+        for key in request:
+            if key == "STATUS": continue
+            for line in request[key]:
+                (_, _, _, _, _, SI, EI, _) = line
+                if EI.eventId not in evs:
+                    d = AttribDict()
+                    d.eventId    = EI.eventId
+                    d.etime      = EI.time
+                    d.elongitude = EI.longitude
+                    d.elatitude  = EI.latitude
+                    d.emagnitude = EI.magnitude
+                    d.edepth     = EI.depth
+                    d.stationId  = SI.stationId
+                    d.slongitude = SI.longitude
+                    d.slatitude  = SI.latitude
+                    d.selevation = SI.elevation
+                    evs[(EI.eventId, SI.stationId)] = d
+        
+        BaseBuilder.__x_list(evs, fields, formats, validfields, formatrule, separator, destination)
+
+    @staticmethod
+    def station_list(request, fields = ["#", "stationId", "longitude", "latitude", "elevation"], separator = "\t", formats = { }, destination = sys.stdout):
         validfields = ["#", "stationId", "longitude", "latitude", "elevation"]
         formatrule     = {
            "#": "%04d",
@@ -471,10 +510,10 @@ class BaseBuilder(object):
                 if SI.stationId not in sts:
                     sts[SI.stationId] = SI
         
-        BaseBuilder.__x_list(sts, fields, formats, validfields, formatrule, separator)
+        BaseBuilder.__x_list(sts, fields, formats, validfields, formatrule, separator, destination)
 
     @staticmethod
-    def event_list(request, fields = ["#", "eventId", "time", "longitude", "latitude", "depth", "magnitude"], separator = "\t", formats = { }):
+    def event_list(request, fields = ["#", "eventId", "time", "longitude", "latitude", "depth", "magnitude"], separator = "\t", formats = { }, destination = sys.stdout):
         validfields = ["#", "eventId", "time", "longitude", "latitude", "depth", "magnitude"]
         formatrule     = {
            "#": "%04d",
@@ -495,7 +534,7 @@ class BaseBuilder(object):
                 if EI.eventId not in evs:
                     evs[EI.eventId] = EI
         
-        BaseBuilder.__x_list(evs, fields, formats, validfields, formatrule, separator)
+        BaseBuilder.__x_list(evs, fields, formats, validfields, formatrule, separator, destination)
 
     @staticmethod
     def filter_channels(request, allowedChannels = "Z"):
@@ -789,6 +828,7 @@ class ArcLinkFDSNBuilder(BaseBuilder):
                 # Station loop
                 for (_, _, network) in  unWrapNSLC(inventory.network):
                     for (_, _, station) in  unWrapNSLC(network.station):
+                        # ! MISSING CHECKS
                         try:
                             print("  Working on station %s.%s " % (network.code, station.code), end="", file=sys.stderr)
                             self._build(lines,
