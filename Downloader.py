@@ -80,6 +80,30 @@ class Sc3ArclinkFetcher(BaseFetcher):
 
         self._all_in_one = allinone
         self._merge = merge
+        self.__SSLpasswordDict = None
+
+    def __load_passwords(self, extrafile  = None):
+        if self.__SSLpasswordDict is not None:
+            return
+        
+        self.__SSLpasswordDict = {}
+        
+        for SSLpasswordFile in [ os.path.join(os.environ['HOME'],".dcidpasswords.txt"), "dcidpasswords.txt", extrafile]: 
+            if SSLpasswordFile and os.path.exists(SSLpasswordFile):
+                fd = open(SSLpasswordFile)
+                line = fd.readline()
+                while line:
+                    line = line.strip()
+                    if line and line[0] != "#":
+                        try:
+                            (dcid, password) = line.split()
+                            if dcid in self.__SSLpasswordDict:
+                                print("Overwritting %s datacenter default password with password from file %s" % (dcid, SSLpasswordFile))
+                            self.__SSLpasswordDict[dcid] = password
+                        except ValueError:
+                            print(SSLpasswordFile + " invalid line: " + line, file=sys.stderr)
+                    line = fd.readline()
+                fd.close()
 
     def _logquery(self, status):
         message = "  Request issues:"
@@ -105,7 +129,19 @@ class Sc3ArclinkFetcher(BaseFetcher):
         try:
             request.wait()
             self._logquery(request.status())
-            request.download_data(datastream, block = True, purge = True)
+            
+            dcid = None
+            for v in request.status().volume:
+                if v.encrypted:
+                    self.__load_passwords()
+                    if dcid and dcid != v.dcid:
+                        print("Oops, volumes from different dcids ... %s - not supported" % v.dcid)
+                    dcid = v.dcid
+            
+            if self.__SSLpasswordDict is not None and dcid and dcid in self.__SSLpasswordDict:
+                request.download_data(datastream, block = True, purge = True, password = self.__SSLpasswordDict[dcid])
+            else:
+                request.download_data(datastream, block = True, purge = True)
 
             if datastream.pos == 0:
                 print("  No Data Returned for Requests:", file=sys.stderr)
@@ -275,3 +311,14 @@ class Downloader(object):
                         if extracter is None: continue
                         result = extracter.work(self._buildfolder(key), key, request, data)
                         print("  Wrote (In:%d Assoc:%d nWin:%d rms:%d 3c:%d) -- %d files" % result, file=sys.stderr)
+
+if __name__ == "__main__":
+    from Builders import BaseBuilder
+    rq = BaseBuilder.load_request("xc-phase2")
+    A = Sc3ArclinkFetcher("seisrequest.iag.usp.br:18001:m.bianchi@iag.usp.br", allinone = True, merge = False)
+    
+    for key in rq.keys():
+        if key == "STATUS": continue
+        request = rq[key]
+        print (request[0])
+        A.work(key, [ request[0] ])
