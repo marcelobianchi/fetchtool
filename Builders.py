@@ -721,7 +721,7 @@ class ArcLinkFDSNBuilder(BaseBuilder):
             # And based on the Channel Instrument Code
             if instcode.index(newitem[1][1]) < instcode.index(item[1][1]):
                 return newitem
-        elif newitem[5] < item[5] and newitem[5] > targetsps:
+        elif newitem[5] < item[5]:
             return newitem
 
         return item
@@ -974,7 +974,7 @@ class FDSNBuilder(BaseBuilder):
             # And based on the Channel Instrument Code
             if instcode.index(newitem[1][1]) < instcode.index(item[1][1]):
                 return newitem
-        elif newitem[5] < item[5] and newitem[5] > targetsps:
+        elif newitem[5] < item[5]:
             return newitem
 
         return item
