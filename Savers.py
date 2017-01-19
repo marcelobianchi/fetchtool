@@ -24,6 +24,7 @@ from SeismicHandlerStation import ShStation
 from obspy.core import AttribDict, Stream
 from obspy.io.sac import SACTrace
 import os, sys
+import numpy as np 
 
 # Defaults Time Constants
 SECOND = 1
@@ -164,8 +165,44 @@ class Saver(object):
         # Clean up bad IDS
         self._cleanids("Minimun Window", stream, [])
 
+    def _ensure_no_spike(self, stream, request):
+        if self.parameters.spike.enabled == False: return
+
+        for trace in stream:
+            pt = request[trace._f_linecount][7]['time']
+
+            ta = trace.slice(pt - self.parameters.spike.window, pt)
+            ta.detrend('linear')
+
+            tb = trace.slice(pt, pt + self.parameters.spike.window)
+            tb.detrend('linear')
+
+            if abs(ta.max()) * self.parameters.spike.ratio > abs(tb.max()):
+                del trace._f_evid
+
+        # Clean up bad IDS
+        self._cleanids("Spike Clean", stream, [])
+
     def _ensure_minimun_rms(self, stream, request):
-        pass
+        if self.parameters.rms.enabled == False: return
+        
+        for trace in stream:
+            pt = request[trace._f_linecount][7]['time']
+
+            ta = trace.slice(pt-self.parameters.rms.w, pt)
+            ta.detrend('linear')
+
+            tb = trace.slice(pt, pt+self.parameters.rms.w)
+            tb.detrend('linear')
+
+            rmsa = np.mean(ta.data * ta.data)
+            rmsb = np.mean(tb.data * tb.data)
+
+            if rmsa * self.parameters.rms.ratio >= rmsb:
+                del trace._f_evid
+
+        # Clean up bad IDS
+        self._cleanids("RMS Check", stream, [])
 
     def _fix_event_headers(self, stream, request):
         raise Exception("Base Class Saver -- Not implemented")
@@ -176,15 +213,22 @@ class Saver(object):
     def _extract(self, folder, key, request, stream):
         raise Exception("Base Class Saver -- Not implemented")
 
-    def enableTimeWindowCheck(self,prephase, postphase):
+    def enableTimeWindowCheck(self, prephase, postphase):
         self.parameters.tw.prephasevalue = abs(prephase)
         self.parameters.tw.postphasevalue = abs(postphase)
 
-    def enablermscheck(self,f1,f2,ratio):
-        raise Exception("Not Implemented")
+    def enablermscheck(self, window, ratio):
+        self.parameters.rms.enabled = True
+        self.parameters.rms.w = window
+        self.parameters.rms.ratio = ratio
 
     def disable3ccheck(self):
         self.parameters.no3c = True
+
+    def enablespikecheck(self, window, ratio):
+        self.parameters.spike.enabled = True
+        self.parameters.spike.window  = window
+        self.parameters.spike.ratio   = ratio
 
     def __initParameters(self):
         parameters = AttribDict({})
@@ -196,12 +240,18 @@ class Saver(object):
 
         # RMS
         parameters.rms = AttribDict({})
-        parameters.rms.rmsratio = None
-        parameters.rms.freqmin = None
-        parameters.rms.freqmax = None
+        parameters.rms.enabled = False
+        parameters.rms.ratio   = None
+        parameters.rms.w       = None
 
         # 3c check
         parameters.no3c = False
+
+        # Spike
+        parameters.spike = AttribDict({})
+        parameters.spike.enabled = False
+        parameters.spike.window  = None
+        parameters.spike.ratio   = None
 
         return parameters
 
@@ -224,6 +274,9 @@ class Saver(object):
         self._ensure_minimun_rms(stream, request)
         n_rms = len(stream)
 
+        self._ensure_no_spike(stream, request)
+        n_spike = len(stream)
+        
         ## THIS IS THE LAST
         # Ensure that every event has 3 components only !
         self._ensure_tree_components(stream, request)
@@ -238,7 +291,7 @@ class Saver(object):
 
         del stream
 
-        return (n_initial, n_associate, n_window, n_rms, n_tree, written)
+        return (n_initial, n_associate, n_window, n_rms, n_spike, n_tree, written)
 
 class QSaver(Saver):
     def __init__(self, debug = False):
