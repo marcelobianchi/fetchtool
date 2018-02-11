@@ -37,11 +37,11 @@ import socket
 
 STATUS = AttribDict({
                      "unset": "unset",
-                     
+
                      "requested": "requested",
                      "downloaded": "downloaded",
                      "saved": "saved",
-                     
+
                      "temporary_error": "temporary_error",
                      "permanent_error": "permanent_error",
                      })
@@ -186,7 +186,7 @@ class BaseBuilder(object):
             if len(event.origins) == 0:
                 raise NextItem("Bad origin for event.")
             origin = event.origins[0]
-            
+
 
         if magnitude is None:
             if len(event.magnitudes) == 0:
@@ -226,7 +226,7 @@ class BaseBuilder(object):
         '''
         arrivals = self.__tworker.get_travel_times(depth / 1000.0, delta, phase_list=phase )
 
-        if len(arrivals) == 0: 
+        if len(arrivals) == 0:
             raise NextItem("No phases selected for Depth: %s Distance: %s Phases: %s" % (delta, depth, phase))
 
         time = arrivals[0].time
@@ -413,7 +413,7 @@ class BaseBuilder(object):
         if isinstance(t0, str): t0 = UTCDateTime(t0)
         if isinstance(t1, str): t1 = UTCDateTime(t1)
 
-        return (t0, t1, targetSamplingRate, allowedGainCodes, timeRange, phasesOrPhaseGroup, 
+        return (t0, t1, targetSamplingRate, allowedGainCodes, timeRange, phasesOrPhaseGroup,
                     networkStationCodes, stationRestrictionArea,
                     eventRestrictionArea, magnitudeRange, depthRange,
                     distanceRange)
@@ -432,11 +432,11 @@ class BaseBuilder(object):
                 formatrule[f] = formats[f]
             else:
                 raise Exception("Cannot change format for field %f" % f)
-        
+
         for f in fields:
             if f not in validfields:
                 raise Exception("Invalid field %f" % f)
-        
+
         i = 1
         for e in data:
             ev = data[e]
@@ -467,9 +467,9 @@ class BaseBuilder(object):
            "edepth": "%6.1f",
            "emagnitude": "%3.1f"
         }
-        
+
         evs  = { }
-         
+
         for key in request:
             if key == "STATUS": continue
             for line in request[key]:
@@ -487,7 +487,7 @@ class BaseBuilder(object):
                     d.slatitude  = SI.latitude
                     d.selevation = SI.elevation
                     evs[(EI.eventId, SI.stationId)] = d
-        
+
         BaseBuilder.__x_list(evs, fields, formats, validfields, formatrule, separator, destination)
 
     @staticmethod
@@ -500,16 +500,16 @@ class BaseBuilder(object):
            "latitude": "%+9.4f",
            "elevation": "%6.2f",
         }
-        
+
         sts  = { }
-         
+
         for key in request:
             if key == "STATUS": continue
             for line in request[key]:
                 (_, _, _, _, _, SI, _, _) = line
                 if SI.stationId not in sts:
                     sts[SI.stationId] = SI
-        
+
         BaseBuilder.__x_list(sts, fields, formats, validfields, formatrule, separator, destination)
 
     @staticmethod
@@ -524,16 +524,16 @@ class BaseBuilder(object):
            "depth": "%6.1f",
            "magnitude": "%3.1f"
         }
-        
+
         evs  = { }
-         
+
         for key in request:
             if key == "STATUS": continue
             for line in request[key]:
                 (_, _, _, _, _, _, EI, _) = line
                 if EI.eventId not in evs:
                     evs[EI.eventId] = EI
-        
+
         BaseBuilder.__x_list(evs, fields, formats, validfields, formatrule, separator, destination)
 
     @staticmethod
@@ -549,27 +549,60 @@ class BaseBuilder(object):
         return request
 
     @staticmethod
-    def filter_netStationEvent(request, existing):
+    def filter_netStationEvent(request, existing, useNetwork = False):
         keys = request.keys()
+        ndel = 0
         for evk in keys:
             ev = request[evk]
             lines = []
             for line in ev:
-                t = ("%s.%s" % (line[2],line[3]), line[6].eventId)
-                if t in existing: continue
+                if useNetwork:
+                    t = ("%s.%s" % (line[2],line[3]), line[6].eventId[:-2])
+                else:
+                    t = (line[3], line[6].eventId[:-2])
+                if t in existing:
+                    ndel += 1
+                    continue
                 lines.append(line)
             if lines:
                 request[evk] = lines
             else:
                 del request[evk]
+        print("  %d lines were removed" % ndel)
         return request
 
+    @staticmethod
+    def request_stats(request):
+        ng = 0
+        nl = { }
+        
+        start = {}
+        end = {}
+                
+        for key in request:
+            if key == "STATUS": continue
+            ng += 1
+            start[key] = []
+            end[key] = []
+            nl[key] = 0
+            for line in request[key]:
+                start[key].append(line[0])
+                end[key].append(line[1])
+                nl[key] += 1
+
+        print("Total of ng=%d" % ng)
+        print("Total of nl=%d" % sum(nl.values()))
+        for k in nl:
+            print("%s from %s to %s" % (k, min(start[k]), max(end[k]) ))
+        print("Min Overall Date is=%s" % min(min(start.values())))
+        print("Max Overall Date is=%s" % max(max(start.values())))
+        
     @staticmethod
     def show_request(request, compact = True):
         def fv(v):
             if isinstance(v, float): return ("%7.1f" if not compact else "%.1f") % v
             return v
-        
+
         def showkvd(title, it):
             if compact:
                 print("%s " % (title), end="")
@@ -586,13 +619,13 @@ class BaseBuilder(object):
 
         if request == None:
             raise Exception("Request cannot be None")
-        
+
         print("\nRequent Entity of %d Line%s\n" % ((len(request) - 1), "s" if len(request) > 2 else ""))
-        
+
         if "STATUS" in request:
                 request["STATUS"].show()
                 print("")
-        
+
         for key in request:
             if key == "STATUS": continue
             print(key)
@@ -619,12 +652,12 @@ class BaseBuilder(object):
                 showkey = None
 
             m = Basemap(projection='robin', lon_0=0, resolution='c')
-            
+
             m.fillcontinents(color='gray',lake_color='white')
             m.drawmapboundary(fill_color='white')
             m.drawmeridians(range(0, 360, 30))
             m.drawparallels(range(-90, 90, 30))
-            
+
             evn, stn, evs, sts = [ ], [ ], [ ], [ ]
             for k in request:
                 if k == "STATUS": continue
@@ -648,7 +681,7 @@ class BaseBuilder(object):
                         sts.append((sx,sy))
                     if add_lines:
                         m.plot([ex, sx], [ey, sy], linewidth=1, color='k')
-            
+
             for ex,ey in evs:
                 m.plot(ex, ey, 'b*', markersize = 16, color = 'g')
             for sx,sy in sts:
@@ -737,7 +770,7 @@ class ArcLinkFDSNBuilder(BaseBuilder):
             for (_, _, channel) in unWrapNSLC(location.stream):
                 if t0 < channel.start or (channel.end is not None and t0 > channel.end):
                     continue
-    
+
                 if channel.code[-1] == "Z":
                     z = self.__choose(z, location, channel, targetsps, instcode)
                 elif channel.code[-1] == "N" or channel.code[-1] == "1":
@@ -781,10 +814,10 @@ class ArcLinkFDSNBuilder(BaseBuilder):
         if networkStationList is None:
             networkStationList = [ "*.*" ]
 
-        (t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList, 
+        (t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList,
         networkStationList, stationRestrictionArea,
         eventRestrictionArea, magnitudeRange, depthRange,
-        distanceRange) = self._check_param(t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList, 
+        distanceRange) = self._check_param(t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList,
                                           networkStationList, stationRestrictionArea,
                                           eventRestrictionArea,
                                           magnitudeRange,
@@ -859,10 +892,10 @@ class ArcLinkFDSNBuilder(BaseBuilder):
         (phasename, phaselist) = self._resolve_phasenames(phasesOrPhaseGroupList)
         print("Searching using: %s %s" % (phasename, phaselist), file=sys.stderr)
 
-        (t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList, 
+        (t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList,
         networkStationList, stationRestrictionArea,
         eventRestrictionArea, magnitudeRange, depthRange,
-        distanceRange) = self._check_param(t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList, 
+        distanceRange) = self._check_param(t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList,
                                           networkStationList, stationRestrictionArea,
                                           eventRestrictionArea,
                                           magnitudeRange,
@@ -1023,10 +1056,10 @@ class FDSNBuilder(BaseBuilder):
                     distanceRange = None):
         '''Search initially by stations, later, find events related to the stations time and distance specified.'''
 
-        (t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList, 
+        (t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList,
          networkStationList, stationRestrictionArea,
          eventRestrictionArea, magnitudeRange, depthRange,
-         distanceRange) = self._check_param(t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList, 
+         distanceRange) = self._check_param(t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList,
                                           networkStationList, stationRestrictionArea,
                                           eventRestrictionArea,
                                           magnitudeRange,
@@ -1036,7 +1069,7 @@ class FDSNBuilder(BaseBuilder):
         (phasename, phaselist) = self._resolve_phasenames(phasesOrPhaseGroupList)
         print("Searching using: %s %s" % (phasename, phaselist), file=sys.stderr)
 
-        
+
         # List of request lines
         lines = []
 
@@ -1092,10 +1125,14 @@ class FDSNBuilder(BaseBuilder):
                     try:
                         events = "INVALID"
                         tryid = 1
-                        while tryid < 3 and events == "INVALID":
+                        while tryid < 5 and events == "INVALID":
                             try:
                                 events = self.e_fdsn_client.get_events(**kwargsevent)
                             except socket.timeout:
+                                print('Failed . try %d' % tryid)
+                                tryid = tryid + 1
+                                pass
+                            except socket.error:
                                 print('Failed . try %d' % tryid)
                                 tryid = tryid + 1
                                 pass
@@ -1144,10 +1181,10 @@ class FDSNBuilder(BaseBuilder):
         if networkStationList is None:
             networkStationList = [ "*.*" ]
 
-        (t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList, 
+        (t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList,
         networkStationList, stationRestrictionArea,
         eventRestrictionArea, magnitudeRange, depthRange,
-        distanceRange) = self._check_param(t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList, 
+        distanceRange) = self._check_param(t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList,
                                           networkStationList, stationRestrictionArea,
                                           eventRestrictionArea,
                                           magnitudeRange,
@@ -1231,16 +1268,16 @@ if __name__ == "__main__":
 #                         allowedGainList = ["H", "L"],
 #                         dataWindowRange = Range(-120, 600),
 #                         phasesOrPhaseGroupList = "pgroup",
-# 
+#
 #                         networkStationList = [ "TA.A*"],
 #                         stationRestrictionArea = AreaRange(-150.0, -90.0, 15.0, 60.0),
-# 
+#
 #                         eventRestrictionArea = AreaRange(-35.0, -10.0, -55.0, -60.0),
 #                         magnitudeRange = Range(6.2, 9.0),
 #                         depthRange = Range(0.0, 400.0),
 #                         distanceRange = None
 #                         )
-# 
+#
 #     rb.show_request(req)
 
 #     rb.save_request("request.pik", req)
@@ -1249,5 +1286,5 @@ if __name__ == "__main__":
 #     rq = rb.load_request("xc-phase2")
 #     rb.event_list(rq, separator="\t")
 #     rb.station_list(rq, separator="\t")
-        
+
         pass
