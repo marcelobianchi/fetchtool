@@ -148,7 +148,8 @@ class BaseBuilder(object):
     Generic Methods that can be used in FDSN or ARCLINK modes
     '''
 
-    def _getChannelList(self, station, t0, targetsps, instcode):
+    @staticmethod
+    def _getChannelList(station, t0, targetsps, instcode):
         raise Exception("Implement your own override !")
 
     def _build(self, lines, network, station, origin, magnitude, phaselist, phasename, targetSamplingRate, allowedGainCodes, timeRange):
@@ -736,8 +737,8 @@ class ArcLinkFDSNBuilder(BaseBuilder):
     '''
     ArcLink specific Methods
     '''
-
-    def __choose(self, item, location, channel, targetsps, instcode):
+    @staticmethod
+    def _choose(item, location, channel, targetsps, instcode):
 
         # Build a newitem for the current channel
         sps = channel.sampleRateNumerator / channel.sampleRateDenominator
@@ -759,7 +760,8 @@ class ArcLinkFDSNBuilder(BaseBuilder):
 
         return item
 
-    def _getChannelList(self, station, t0, targetsps, instcode):
+    @staticmethod
+    def _getChannelList(station, t0, targetsps, instcode):
 
         ## Choose will build something like: (loca, chan, sps , az  , dip , dsps)
         z = (None, None, None, None, None, None)
@@ -772,11 +774,11 @@ class ArcLinkFDSNBuilder(BaseBuilder):
                     continue
 
                 if channel.code[-1] == "Z":
-                    z = self.__choose(z, location, channel, targetsps, instcode)
+                    z = ArcLinkFDSNBuilder._choose(z, location, channel, targetsps, instcode)
                 elif channel.code[-1] == "N" or channel.code[-1] == "1":
-                    n = self.__choose(n, location, channel, targetsps, instcode)
+                    n = ArcLinkFDSNBuilder._choose(n, location, channel, targetsps, instcode)
                 elif channel.code[-1] == "E" or channel.code[-1] == "2":
-                    e = self.__choose(e, location, channel, targetsps, instcode)
+                    e = ArcLinkFDSNBuilder._choose(e, location, channel, targetsps, instcode)
     #             else:
     #                 print("Unknow channel %s.%s" % (channel.location_code, channel.code), file=sys.stderr)
 
@@ -990,8 +992,8 @@ class FDSNBuilder(BaseBuilder):
     '''
     FDSN specific Methods
     '''
-
-    def __chooseFDSN(self, item, channel, targetsps, instcode):
+    @staticmethod
+    def _choose(item, channel, targetsps, instcode):
 
         # Build a newitem for the current channel
         newitem = (channel.location_code, channel.code, channel.sample_rate, channel.azimuth, channel.dip, abs(channel.sample_rate - targetsps))
@@ -1012,7 +1014,8 @@ class FDSNBuilder(BaseBuilder):
 
         return item
 
-    def _getChannelList(self, station, t0, targetsps, instcode):
+    @staticmethod
+    def _getChannelList(station, t0, targetsps, instcode):
 
         ## Choose will build something like: (loca, chan, sps , az  , dip , dsps)
         z = (None, None, None, None, None, None)
@@ -1024,11 +1027,11 @@ class FDSNBuilder(BaseBuilder):
                 continue
 
             if channel.code[-1] == "Z":
-                z = self.__chooseFDSN(z, channel, targetsps, instcode)
+                z = FDSNBuilder._choose(z, channel, targetsps, instcode)
             elif channel.code[-1] == "N" or channel.code[-1] == "1":
-                n = self.__chooseFDSN(n, channel, targetsps, instcode)
+                n = FDSNBuilder._choose(n, channel, targetsps, instcode)
             elif channel.code[-1] == "E" or channel.code[-1] == "2":
-                e = self.__chooseFDSN(e, channel, targetsps, instcode)
+                e = FDSNBuilder._choose(e, channel, targetsps, instcode)
 #             else:
 #                 print("Unknow channel %s.%s" % (channel.location_code, channel.code), file=sys.stderr)
 
@@ -1068,7 +1071,6 @@ class FDSNBuilder(BaseBuilder):
 
         (phasename, phaselist) = self._resolve_phasenames(phasesOrPhaseGroupList)
         print("Searching using: %s %s" % (phasename, phaselist), file=sys.stderr)
-
 
         # List of request lines
         lines = []
@@ -1255,6 +1257,153 @@ class FDSNBuilder(BaseBuilder):
 
         return request
 
+class CSVBuilder(BaseBuilder):
+    def __init__(self, lon_lat_dep_mag_file, arclink_or_fdsn, debug = False):
+        BaseBuilder.__init__(self)
+        
+        self._evfile = lon_lat_dep_mag_file
+        if arclink_or_fdsn.find("http://") == -1:
+            (host,port,user) = arclink_or_fdsn.strip().replace("/",":").split(":")
+            self._client = ArclinkManager("%s:%s" % (host,port), user)
+            self._client_type = 'arclink'
+        else:
+            self._client = fdsn.Client(arclink_or_fdsn, debug = debug)
+            self._client_type = 'fdsn'
+        
+        return
+    
+    def loadcsv(self, evr, mr, dr):
+        event = AttribDict()
+        magnitude = AttribDict()
+        
+        with open(self._evfile, "r") as fio:
+            for line in fio:
+                # Parsers
+                
+                time, lon, lat, dep, mag = line.strip().split()
+                lon = float(lon); lat = float(lat); dep = float(dep); mag = float(mag); time = UTCDateTime(time)
+                
+                # Filters
+                
+                if evr is not None and evr.good(lon, lat) == False: continue
+                if dr is not None and dr.good(dep) == False: continue
+                if mr is not None and mr.good(mag) == False: continue
+                
+                event.time = time
+                event.latitude = lat
+                event.longitude = lon
+                event.depth = dep
+                magnitude.mag = mag
+                yield (event, magnitude)
+        raise StopIteration("End of File")
+    
+    def _getChannelList(self, station, t0, targetsps, instcode):
+        
+        if self._client_type == "arclink":
+            return ArcLinkFDSNBuilder._getChannelList(station, t0, targetsps, instcode)
+        
+        if self._client_type == "fdsn":
+            return FDSNBuilder._getChannelList(station, t0, targetsps, instcode)
+        
+        raise Exception("Went wrong!")
+    
+    def loadstArclink(self, net, sta, origin, networkStationList, stationRestrictionArea, distanceRange):
+        inventory = self._client.get_inventory(net, sta, "*", "*", (origin.time - 86400).datetime, (origin.time + 86400).datetime)
+        
+        if inventory is None or len(inventory.network) == 0:
+            print("No stations for pattern: %s.%s" % (net, sta), file=sys.stderr)
+            raise StopIteration("No Stations.")
+        
+        print("\n Stations for pattern: %s.%s" % (net,sta), file=sys.stderr)
+        # Station loop
+        for (_, _, network) in  unWrapNSLC(inventory.network):
+            for (_, _, station) in  unWrapNSLC(network.station):
+                yield network, station
+        
+        raise StopIteration("Done Stations.")
+    
+    def loadstFDSN(self, net, sta, origin, networkStationList, stationRestrictionArea, distanceRange):
+        kwargsstation = self._fill_kwargsstation((origin.time - 86400),
+                                                  (origin.time + 86400),
+                                                  stationRestrictionArea,
+                                                  origin.latitude,
+                                                  origin.longitude,
+                                                  distanceRange)
+        kwargsstation['net'] = net
+        kwargsstation['sta'] = sta
+        
+        try:
+            inventory = self._client.get_stations(**kwargsstation)
+        except fdsn.header.FDSNException:
+            inventory = None
+        
+        if inventory is None or len(inventory.networks) == 0:
+            print("\n No stations for pattern: %s.%s" % (net, sta), file=sys.stderr)
+            raise StopIteration("No Stations.")
+        
+        print("\n Stations for pattern: %s.%s" % (net,sta), file=sys.stderr)
+        for network in inventory.networks:
+            for station in network.stations:
+                yield network, station
+        raise StopIteration("Done Stations.")   
+
+    def eventBased(self, t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList,
+                   eventRestrictionArea,
+                   magnitudeRange,
+                   depthRange,
+
+                   networkStationList = None,
+                   stationRestrictionArea = None,
+                   distanceRange = None
+                   ):
+        
+        # List of request lines
+        lines = []
+
+        (phasename, phaselist) = self._resolve_phasenames(phasesOrPhaseGroupList)
+        print("Searching using: %s %s" % (phasename, phaselist), file=sys.stderr)
+
+        if networkStationList is None:
+            networkStationList = [ "*.*" ]
+
+        (t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList,
+        networkStationList, stationRestrictionArea,
+        eventRestrictionArea, magnitudeRange, depthRange,
+        distanceRange) = self._check_param(t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList,
+                                          networkStationList, stationRestrictionArea,
+                                          eventRestrictionArea,
+                                          magnitudeRange,
+                                          depthRange,
+                                          distanceRange)
+        
+        if self._plotevents:
+            print("Cannot plot events yet")
+        
+        for origin, magnitude in self.loadcsv(eventRestrictionArea, magnitudeRange, depthRange):
+            print("Working on origin: %s" % str(origin.time), file=sys.stderr)
+            for code in networkStationList:
+                (net, sta) = code.split(".")
+                
+                if self._client_type == "arclink":
+                    iterator = self.loadstArclink(net, sta, origin, networkStationList, stationRestrictionArea, distanceRange)
+                else:
+                    iterator = self.loadstFDSN(net, sta, origin, networkStationList, stationRestrictionArea, distanceRange)
+                
+                for network, station in iterator:
+                    try:
+                        print("  Working on station %s.%s " % (network.code, station.code), end="", file=sys.stderr)
+                        self._build(lines,
+                                   network, station, origin, magnitude,
+                                   phaselist, phasename,
+                                   targetSamplingRate, allowedGainList, dataWindowRange)
+                        print("OK!", file=sys.stderr)
+                    except NextItem, e:
+                        print("\n  Skipping: %s" % str(e), file=sys.stderr)
+        
+        request = self._organize_by_event(lines)
+
+        return request
+
 if __name__ == "__main__":
 #     rb = ArcLinkRequestBuilder("IRIS","seisrequest.iag.usp.br:18001:m.bianchi@iag.usp.br")
 #     rb = FDSNBuilder("IRIS")
@@ -1287,4 +1436,8 @@ if __name__ == "__main__":
 #     rb.event_list(rq, separator="\t")
 #     rb.station_list(rq, separator="\t")
 
-        pass
+#    rb = CSVBuilder("ff", "seismaster:18001:m.bianchi@iag.usp.br")
+#    rq = rb.eventBased("2010-01-01", "2020-01-01", 100., ["H"], Range(-200, 200),
+#                  "pgroup", AreaRange.WORLD(), Range.ALLMAGS(), Range.ALLDEPTHS(), ["BX.LD*"], None, None)
+#    BaseBuilder.show_request(rq, True)
+    pass
