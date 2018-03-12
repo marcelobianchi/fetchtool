@@ -19,7 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
 from obspy import UTCDateTime
-from Builders import AreaRange, Range
+from BaseBuilder import AreaRange, Range
 from Builders import FDSNBuilder, ArcLinkFDSNBuilder
 from Downloader import Downloader, FDSNFetcher, Sc3ArclinkFetcher
 from Savers import SacSaver, QSaver , MSSaver

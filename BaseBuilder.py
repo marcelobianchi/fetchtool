@@ -104,6 +104,10 @@ class Range(object):
         return True
 
     @staticmethod
+    def ALLDISTS():
+        return Range(0.0, 180.0)
+    
+    @staticmethod
     def ALLMAGS():
         return Range(0.0, 10.0)
 
