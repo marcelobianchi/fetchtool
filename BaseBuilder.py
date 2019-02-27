@@ -206,7 +206,8 @@ class BaseBuilder(object):
         Define more groups as needed:
         '''
         groups = {
-          "pgroup": [ "ttp" ]
+          "pgroup": [ "ttp" ],
+          "sgroup": [ "tts" ]
         }
 
         if isinstance(value, str):

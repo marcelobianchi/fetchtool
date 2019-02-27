@@ -300,10 +300,10 @@ class QSaver(Saver):
     def _extract(self, folder, key, request, stream):
         if len(stream) == 0: return 0
         base, target = os.path.split(folder)
-        if self._debug: print("  Wrote %s" % os.path.join(base, "%s.Q??" % target), file=sys.stderr)
+        if self._debug: print("  Wrote %s" % os.path.join(folder, "%s.Q??" % target), file=sys.stderr)
 
         stream.sort(['EVIDMINE','network', 'station', 'channel'])
-        stream.write(folder, format="Q")
+        stream.write(os.path.join(folder, target), format="Q")
 
         ##
         # Handle the STATINF.DAT SH file
