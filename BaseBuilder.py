@@ -27,6 +27,7 @@ from obspy.core.utcdatetime import UTCDateTime
 from obspy import geodetics
 from obspy import taup
 from obspy.core import event as ObsEvent
+import numpy as np
 
 import pickle
 import os
@@ -41,6 +42,10 @@ STATUS = AttribDict({
                      "temporary_error": "temporary_error",
                      "permanent_error": "permanent_error",
                      })
+
+MINUTE = 60
+HOUR   = 60 * MINUTE
+DAY    = 24 * HOUR
 
 class Status(object):
     def __init__(self):
@@ -206,8 +211,8 @@ class BaseBuilder(object):
         Define more groups as needed:
         '''
         groups = {
-          "pgroup": [ "ttp" ],
-          "sgroup": [ "tts" ]
+          "pgroup": [ "ttp" ], 
+          "pall": [ "ttp" ]
         }
 
         if isinstance(value, str):
@@ -226,7 +231,13 @@ class BaseBuilder(object):
             delta is in degrees
             depth is in meters
         '''
-        arrivals = self.__tworker.get_travel_times(depth / 1000.0, delta, phase_list=phase )
+        if 'Ot' not in phase:
+            arrivals = self.__tworker.get_travel_times(depth / 1000.0, delta, phase_list=phase )
+        else: # Handle the Ot flag to use Event Origin Time
+            arrivals = [ AttribDict({
+                'time' : 0.0,
+                'ray_param_sec_degree' : 0.0
+            })]
 
         if len(arrivals) == 0:
             raise NextItem("No phases selected for Depth: %s Distance: %s Phases: %s" % (delta, depth, phase))
@@ -440,18 +451,24 @@ class BaseBuilder(object):
                 raise Exception("Invalid field %f" % f)
 
         i = 1
+        data_list = [ ]
         for e in data:
             ev = data[e]
             first = True
+            data_fields = []
             for f in fields:
                 if not first: print(separator, end = "", file=destination)
                 if f == "#":
+                    data_fields.append(i)
                     print(formatrule[f] % i, end = "", file=destination)
                 else:
+                    data_fields.append(ev[f])
                     print(formatrule[f] % ev[f],end = "", file=destination)
                 first = False
+            data_list.append(data_fields)
             print(file=destination)
             i += 1
+        return data_list
 
     @staticmethod
     def stev_list(request, fields= ["#", "stationId", "slongitude", "slatitude", "selevation", "eventId", "etime", "elongitude", "elatitude", "edepth", "emagnitude"], separator = "\t", formats = { }, destination = sys.stdout):
@@ -490,7 +507,7 @@ class BaseBuilder(object):
                     d.selevation = SI.elevation
                     evs[(EI.eventId, SI.stationId)] = d
 
-        BaseBuilder.__x_list(evs, fields, formats, validfields, formatrule, separator, destination)
+        return BaseBuilder.__x_list(evs, fields, formats, validfields, formatrule, separator, destination)
 
     @staticmethod
     def station_list(request, fields = ["#", "stationId", "longitude", "latitude", "elevation"], separator = "\t", formats = { }, destination = sys.stdout):
@@ -512,7 +529,7 @@ class BaseBuilder(object):
                 if SI.stationId not in sts:
                     sts[SI.stationId] = SI
 
-        BaseBuilder.__x_list(sts, fields, formats, validfields, formatrule, separator, destination)
+        return BaseBuilder.__x_list(sts, fields, formats, validfields, formatrule, separator, destination)
 
     @staticmethod
     def event_list(request, fields = ["#", "eventId", "time", "longitude", "latitude", "depth", "magnitude"], separator = "\t", formats = { }, destination = sys.stdout):
@@ -536,7 +553,7 @@ class BaseBuilder(object):
                 if EI.eventId not in evs:
                     evs[EI.eventId] = EI
 
-        BaseBuilder.__x_list(evs, fields, formats, validfields, formatrule, separator, destination)
+        return BaseBuilder.__x_list(evs, fields, formats, validfields, formatrule, separator, destination)
 
     @staticmethod
     def filter_channels(request, allowedChannels = "Z"):
@@ -640,7 +657,7 @@ class BaseBuilder(object):
         return
 
     @staticmethod
-    def map_request(request, add_lines = False):
+    def map_request(request, add_lines = False, enhance = None, showonly = None):
         from matplotlib import pyplot as plt
         from mpl_toolkits.basemap import Basemap
 
@@ -649,54 +666,54 @@ class BaseBuilder(object):
             if k == "STATUS": continue
             keys.append(k)
 
-        def plot(showkey):
-            if showkey == "ALL":
-                showkey = None
+        m = Basemap(projection='robin', lon_0=0, resolution='c')
 
-            m = Basemap(projection='robin', lon_0=0, resolution='c')
+        m.fillcontinents(color='gray',lake_color='white')
+        m.drawmapboundary(fill_color='white')
+        m.drawmeridians(range(0, 360, 30))
+        m.drawparallels(range(-90, 90, 30))
 
-            m.fillcontinents(color='gray',lake_color='white')
-            m.drawmapboundary(fill_color='white')
-            m.drawmeridians(range(0, 360, 30))
-            m.drawparallels(range(-90, 90, 30))
+        evn, stn, evs, sts = [ ], [ ], [ ], [ ]
+        for k in request:
+            if k == "STATUS": continue
+            for item in request[k]:
+                st = item[5]
+                ev = item[6]
+                eid = str(ev['eventId'])
+                sid = str(st['stationId'])
+                if showonly is not None and ((eid != showonly) and (sid != showonly)): continue
+                elon = float(ev['longitude'])
+                elat = float(ev['latitude'])
+                slon = float(st['longitude'])
+                slat = float(st['latitude'])
+                ex, ey = m(elon, elat)
+                sx, sy = m(slon, slat)
+                if eid not in evn:
+                    evn.append(eid)
+                    evs.append((ex,ey))
+                if sid not in stn:
+                    stn.append(sid)
+                    sts.append((sx,sy))
+                if add_lines:
+                    m.plot([ex, sx], [ey, sy], linewidth=1, color='k')
 
-            evn, stn, evs, sts = [ ], [ ], [ ], [ ]
-            for k in request:
-                if k == "STATUS": continue
-                if showkey is not None and k != showkey: continue
-                for item in request[k]:
-                    st = item[5]
-                    ev = item[6]
-                    eid = ev['eventId']
-                    sid = st['stationId']
-                    elon = float(ev['longitude'])
-                    elat = float(ev['latitude'])
-                    slon = float(st['longitude'])
-                    slat = float(st['latitude'])
-                    ex, ey = m(elon, elat)
-                    sx, sy = m(slon, slat)
-                    if eid not in evn:
-                        evn.append(eid)
-                        evs.append((ex,ey))
-                    if sid not in stn:
-                        stn.append(sid)
-                        sts.append((sx,sy))
-                    if add_lines:
-                        m.plot([ex, sx], [ey, sy], linewidth=1, color='k')
-
-            for ex,ey in evs:
-                m.plot(ex, ey, 'b*', markersize = 16, color = 'g')
-            for sx,sy in sts:
-                m.plot(sx, sy, 'b^', markersize = 16, color = 'r')
-
-            plt.title('Request Container')
-            plt.show()
-
-        try:
-            from ipywidgets import interact
-            interact(plot, showkey = keys);
-        except ImportError:
-            plot( "ALL" )
+        for ex,ey in evs:
+            m.plot(ex, ey, 'b*', markersize = 16, color = 'g')
+        
+        for sx,sy in sts:
+            m.plot(sx, sy, 'b^', markersize = 16, color = 'r')
+        
+        if enhance is not None:
+            for item in [ enhance ] if isinstance(enhance, str) else enhance:
+                if item in stn:
+                    ex, ey = sts[stn.index(item)]
+                    m.plot(ex, ey, '^', markersize = 16, color = 'k')
+                if item in evn:
+                    ex, ey = evs[evn.index(item)]
+                    m.plot(ex, ey, '*', markersize = 16, color = 'k')
+        
+        plt.title('Request Container')
+        plt.show()
 
     @staticmethod
     def load_request(filename):
