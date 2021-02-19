@@ -556,6 +556,58 @@ class BaseBuilder(object):
         return BaseBuilder.__x_list(evs, fields, formats, validfields, formatrule, separator, destination)
 
     @staticmethod
+    def filter_netsta(request, items, mode = "N.S"):
+        '''
+        Filter some stations/networks from the request. Mode is N.S, N or S to filter net/sta, net or stations
+        Items is a list of codes to remove, following mode format.
+        '''
+        for evk in request:
+            if evk == 'STATUS': continue
+            ev = request[evk]
+            lines = []
+            for line in ev:
+                if mode == "N.S":
+                    k = "%s.%s" % (line[2], line[3])
+                elif mode == "N":
+                    k = "%s" % (line[2])
+                elif mode == "S":
+                    k = "%s" % (line[3])
+                else:
+                    raise BadParameter("Mode need to be N.S, N or S")
+                if k not in items: continue
+                lines.append(line)
+            request[evk] = lines
+
+        todelete = []
+        for evk in request:
+            if evk == 'STATUS': continue
+            if len(request[evk]) == 0: todelete.append(evk)
+        for evk in todelete:
+            del request[evk]
+        return request
+    
+    @staticmethod
+    def filter_timewindow(request, start = None, end = None):
+        if start is None and end is None: raise BadParameter("Need start or end parameters")
+        for evk in request:
+            if evk == 'STATUS': continue
+            ev = request[evk]
+            lines = []
+            for line in ev:
+                if start is not None and line[6]['time'] < start: continue
+                if end is not None and line[6]['time'] > end: continue
+                lines.append(line)
+            request[evk] = lines
+
+        todelete = []
+        for evk in request:
+            if evk == 'STATUS': continue
+            if len(request[evk]) == 0: todelete.append(evk)
+        for evk in todelete:
+            del request[evk]
+        return request
+
+    @staticmethod
     def filter_channels(request, allowedChannels = "Z"):
         for evk in request:
             ev = request[evk]
