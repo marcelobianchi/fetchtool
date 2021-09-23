@@ -680,7 +680,7 @@ class BaseBuilder(object):
             else:
                 print(title)
 
-            for k,v in it.iteritems():
+            for k,v in it.items():
                 if compact:
                     print("%s: %s, " % (k,fv(v)), end="")
                 else:

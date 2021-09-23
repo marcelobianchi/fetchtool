@@ -68,12 +68,26 @@ class FDSNBuilder(BaseBuilder):
     '''
     @staticmethod
     def _choose(item, channel, targetsps, instcode):
+        def which(item, instcode):
+            loc     = item[0]
+            channel = item[1]
+            for i,code in enumerate(instcode):
+                codel,codec = ("*",code)
+                if "." in code: codel,codec = code.split(".")
+                
+                if codel == "*":
+                     if codec == channel[1]:
+                         return i
+                else:
+                    if codel == loc and channel[1] == codec: return i
+            
+            return -1
 
         # Build a newitem for the current channel
         newitem = (channel.location_code, channel.code, channel.sample_rate, channel.azimuth, channel.dip, abs(channel.sample_rate - targetsps))
 
         # Check that the instrument code is allowed to select
-        if channel.code[1] not in instcode: return item
+        if which(newitem, instcode) == -1: return item
 
         # If we did not select yet return the current
         if item[0] == None: return newitem
@@ -81,7 +95,7 @@ class FDSNBuilder(BaseBuilder):
         # Decided based on SPS first
         if newitem[5] == item[5]:
             # And based on the Channel Instrument Code
-            if instcode.index(newitem[1][1]) < instcode.index(item[1][1]):
+            if which(newitem, instcode) < which(item, instcode):
                 return newitem
         elif newitem[5] < item[5]:
             return newitem
@@ -110,7 +124,7 @@ class FDSNBuilder(BaseBuilder):
 #                 print("Unknow channel %s.%s" % (channel.location_code, channel.code), file=sys.stderr)
 
         if z[0] is None or n[0] is None or e[0] is None:
-            raise NextItem("No Z, N or E channel(s) found")
+            raise NextItem("No Z, N or E channel(s) found considering loc/gain=%s" % (instcode))
 
         # Return only (location, channel, azimuth, dip)
         z = (z[0], z[1], z[3], z[4])
@@ -123,7 +137,7 @@ class FDSNBuilder(BaseBuilder):
     Request Builder Methods
     '''
 
-    def stationBased(self, t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList,
+    def stationBased(self, t0, t1, targetSamplingRate, allowedLocGainList, dataWindowRange, phasesOrPhaseGroupList,
                     networkStationList,
                     stationRestrictionArea,
 
@@ -133,10 +147,10 @@ class FDSNBuilder(BaseBuilder):
                     distanceRange = None):
         '''Search initially by stations, later, find events related to the stations time and distance specified.'''
 
-        (t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList,
+        (t0, t1, targetSamplingRate, allowedLocGainList, dataWindowRange, phasesOrPhaseGroupList,
          networkStationList, stationRestrictionArea,
          eventRestrictionArea, magnitudeRange, depthRange,
-         distanceRange) = self._check_param(t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList,
+         distanceRange) = self._check_param(t0, t1, targetSamplingRate, allowedLocGainList, dataWindowRange, phasesOrPhaseGroupList,
                                           networkStationList, stationRestrictionArea,
                                           eventRestrictionArea,
                                           magnitudeRange,
@@ -229,7 +243,7 @@ class FDSNBuilder(BaseBuilder):
                             self._build(lines,
                                        network, station, origin, magnitude,
                                        phaselist, phasename,
-                                       targetSamplingRate, allowedGainList, dataWindowRange)
+                                       targetSamplingRate, allowedLocGainList, dataWindowRange)
                             print("OK!", file=sys.stderr)
                         except NextItem as e:
                             print("  Skipping: %s" % str(e), file=sys.stderr)
@@ -239,7 +253,7 @@ class FDSNBuilder(BaseBuilder):
 
         return request
 
-    def eventBased(self, t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList,
+    def eventBased(self, t0, t1, targetSamplingRate, allowedLocGainList, dataWindowRange, phasesOrPhaseGroupList,
                    eventRestrictionArea,
                    magnitudeRange,
                    depthRange,
@@ -257,10 +271,10 @@ class FDSNBuilder(BaseBuilder):
         if networkStationList is None:
             networkStationList = [ "*.*" ]
 
-        (t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList,
+        (t0, t1, targetSamplingRate, allowedLocGainList, dataWindowRange, phasesOrPhaseGroupList,
         networkStationList, stationRestrictionArea,
         eventRestrictionArea, magnitudeRange, depthRange,
-        distanceRange) = self._check_param(t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList,
+        distanceRange) = self._check_param(t0, t1, targetSamplingRate, allowedLocGainList, dataWindowRange, phasesOrPhaseGroupList,
                                           networkStationList, stationRestrictionArea,
                                           eventRestrictionArea,
                                           magnitudeRange,
@@ -322,7 +336,7 @@ class FDSNBuilder(BaseBuilder):
                             self._build(lines,
                                        network, station, origin, magnitude,
                                        phaselist, phasename,
-                                       targetSamplingRate, allowedGainList, dataWindowRange)
+                                       targetSamplingRate, allowedLocGainList, dataWindowRange)
                             print("OK!", file=sys.stderr)
                         except NextItem as e:
                             print("\n  Skipping: %s" % str(e), file=sys.stderr)
@@ -487,7 +501,7 @@ class CSVBuilder(BaseBuilder):
     '''
     Request Builder Methods
     '''
-    def eventBased(self, t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList,
+    def eventBased(self, t0, t1, targetSamplingRate, allowedLocGainList, dataWindowRange, phasesOrPhaseGroupList,
                    eventRestrictionArea,
                    magnitudeRange,
                    depthRange,
@@ -506,10 +520,10 @@ class CSVBuilder(BaseBuilder):
         if networkStationList is None:
             networkStationList = [ "*.*" ]
 
-        (t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList,
+        (t0, t1, targetSamplingRate, allowedLocGainList, dataWindowRange, phasesOrPhaseGroupList,
         networkStationList, stationRestrictionArea,
         eventRestrictionArea, magnitudeRange, depthRange,
-        distanceRange) = self._check_param(t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList,
+        distanceRange) = self._check_param(t0, t1, targetSamplingRate, allowedLocGainList, dataWindowRange, phasesOrPhaseGroupList,
                                           networkStationList, stationRestrictionArea,
                                           eventRestrictionArea,
                                           magnitudeRange,
@@ -539,7 +553,7 @@ class CSVBuilder(BaseBuilder):
                         self._build(lines,
                                    network, station, origin, magnitude,
                                    phaselist, phasename,
-                                   targetSamplingRate, allowedGainList, dataWindowRange)
+                                   targetSamplingRate, allowedLocGainList, dataWindowRange)
                         print("OK!", file=sys.stderr)
                     except NextItem as e:
                         print("\n  Skipping: %s" % str(e), file=sys.stderr)
@@ -548,7 +562,7 @@ class CSVBuilder(BaseBuilder):
 
         return request
     
-    def stationBased(self, t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList,
+    def stationBased(self, t0, t1, targetSamplingRate, allowedLocGainList, dataWindowRange, phasesOrPhaseGroupList,
                     networkStationList,
                     stationRestrictionArea,
 
@@ -557,10 +571,10 @@ class CSVBuilder(BaseBuilder):
                     depthRange = None,
                     distanceRange = None):
 
-        (t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList,
+        (t0, t1, targetSamplingRate, allowedLocGainList, dataWindowRange, phasesOrPhaseGroupList,
          networkStationList, stationRestrictionArea,
          eventRestrictionArea, magnitudeRange, depthRange,
-         distanceRange) = self._check_param(t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList,
+         distanceRange) = self._check_param(t0, t1, targetSamplingRate, allowedLocGainList, dataWindowRange, phasesOrPhaseGroupList,
                                           networkStationList, stationRestrictionArea,
                                           eventRestrictionArea,
                                           magnitudeRange,
@@ -595,7 +609,7 @@ class CSVBuilder(BaseBuilder):
                         self._build(lines,
                                    network, station, origin, magnitude,
                                    phaselist, phasename,
-                                   targetSamplingRate, allowedGainList, dataWindowRange)
+                                   targetSamplingRate, allowedLocGainList, dataWindowRange)
                         print("OK!", file=sys.stderr)
                     except NextItem as e:
                         print("\n  Skipping: %s" % str(e), file=sys.stderr)
@@ -618,7 +632,7 @@ if __name__ == "__main__":
 #     req = rb.eventBased(t0 = UTCDateTime("2007-01-01"),
 #                         t1 = UTCDateTime("2008-01-01"),
 #                         targetSamplingRate = 20.0,
-#                         allowedGainList = ["H", "L"],
+#                         allowedLocGainList = ["H", "L"],
 #                         dataWindowRange = Range(-120, 600),
 #                         phasesOrPhaseGroupList = "pgroup",
 #

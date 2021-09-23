@@ -29,13 +29,27 @@ class ArcLinkFDSNBuilder(BaseBuilder):
     '''
     @staticmethod
     def _choose(item, location, channel, targetsps, instcode):
-
+        def which(item, instcode):
+            loc     = item[0]
+            channel = item[1]
+            for i,code in enumerate(instcode):
+                codel,codec = ("*",code)
+                if "." in code: codel,codec = code.split(".")
+                
+                if codel == "*":
+                     if codec == channel[1]:
+                         return i
+                else:
+                    if codel == loc and channel[1] == codec: return i
+            
+            return -1
+        
         # Build a newitem for the current channel
         sps = channel.sampleRateNumerator / channel.sampleRateDenominator
         newitem = (location.code, channel.code, sps, channel.azimuth, channel.dip, abs(sps - targetsps))
 
         # Check that the instrument code is allowed to select
-        if channel.code[1] not in instcode: return item
+        if which(newitem, instcode) == -1: return item
 
         # If we did not select yet return the current
         if item[0] == None: return newitem
@@ -43,7 +57,7 @@ class ArcLinkFDSNBuilder(BaseBuilder):
         # Decided based on SPS first
         if newitem[5] == item[5]:
             # And based on the Channel Instrument Code
-            if instcode.index(newitem[1][1]) < instcode.index(item[1][1]):
+            if which(newitem, instcode) < which(item, instcode):
                 return newitem
         elif newitem[5] < item[5]:
             return newitem
@@ -86,7 +100,7 @@ class ArcLinkFDSNBuilder(BaseBuilder):
     Request Builder Methods
     '''
 
-    def eventBased(self, t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList,
+    def eventBased(self, t0, t1, targetSamplingRate, allowedLocGainList, dataWindowRange, phasesOrPhaseGroupList,
                    eventRestrictionArea,
                    magnitudeRange,
                    depthRange,
@@ -106,10 +120,10 @@ class ArcLinkFDSNBuilder(BaseBuilder):
         if networkStationList is None:
             networkStationList = [ "*.*" ]
 
-        (t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList,
+        (t0, t1, targetSamplingRate, allowedLocGainList, dataWindowRange, phasesOrPhaseGroupList,
         networkStationList, stationRestrictionArea,
         eventRestrictionArea, magnitudeRange, depthRange,
-        distanceRange) = self._check_param(t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList,
+        distanceRange) = self._check_param(t0, t1, targetSamplingRate, allowedLocGainList, dataWindowRange, phasesOrPhaseGroupList,
                                           networkStationList, stationRestrictionArea,
                                           eventRestrictionArea,
                                           magnitudeRange,
@@ -159,7 +173,7 @@ class ArcLinkFDSNBuilder(BaseBuilder):
                             self._build(lines,
                                          network, station, origin, magnitude,
                                          phaselist, phasename,
-                                         targetSamplingRate, allowedGainList, dataWindowRange)
+                                         targetSamplingRate, allowedLocGainList, dataWindowRange)
                             print("OK!", file=sys.stderr)
                         except NextItem as e:
                             print("\n  Skipping: %s" % str(e), file=sys.stderr)
@@ -168,7 +182,7 @@ class ArcLinkFDSNBuilder(BaseBuilder):
 
         return request
 
-    def stationBased(self, t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList,
+    def stationBased(self, t0, t1, targetSamplingRate, allowedLocGainList, dataWindowRange, phasesOrPhaseGroupList,
                     networkStationList,
                     stationRestrictionArea,
 
@@ -184,10 +198,10 @@ class ArcLinkFDSNBuilder(BaseBuilder):
         (phasename, phaselist) = self._resolve_phasenames(phasesOrPhaseGroupList)
         print("Searching using: %s %s" % (phasename, phaselist), file=sys.stderr)
 
-        (t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList,
+        (t0, t1, targetSamplingRate, allowedLocGainList, dataWindowRange, phasesOrPhaseGroupList,
         networkStationList, stationRestrictionArea,
         eventRestrictionArea, magnitudeRange, depthRange,
-        distanceRange) = self._check_param(t0, t1, targetSamplingRate, allowedGainList, dataWindowRange, phasesOrPhaseGroupList,
+        distanceRange) = self._check_param(t0, t1, targetSamplingRate, allowedLocGainList, dataWindowRange, phasesOrPhaseGroupList,
                                           networkStationList, stationRestrictionArea,
                                           eventRestrictionArea,
                                           magnitudeRange,
@@ -243,7 +257,7 @@ class ArcLinkFDSNBuilder(BaseBuilder):
                             self._build(lines,
                                        network, station, origin, magnitude,
                                        phaselist, phasename,
-                                       targetSamplingRate, allowedGainList, dataWindowRange)
+                                       targetSamplingRate, allowedLocGainList, dataWindowRange)
                             print("OK!", file=sys.stderr)
                         except NextItem as e:
                             print("  Skipping: %s" % str(e), file=sys.stderr)
