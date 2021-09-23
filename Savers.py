@@ -317,7 +317,7 @@ class QSaver(Saver):
                     statinf.add(stcode, stp.latitude, stp.longitude, stp.elevation)
             statinf.save()
             del statinf
-        except Exception,e:
+        except Exception as e:
             print(str(e))
 
         return 1
@@ -392,7 +392,7 @@ class SacSaver(Saver):
             try:
                 if evp.magnitude is not None:
                     trace.stats.sac['mag'] = evp.magnitude
-            except KeyError,e:
+            except KeyError as e:
                 print("No magnitude value (%s)." % e, file=sys.stderr)
 
             # Selection phase

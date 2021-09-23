@@ -402,7 +402,7 @@ class BaseBuilder(object):
         if targetSamplingRate is None: raise Exception("targetSamplingRate should not be None")
         try:
             targetSamplingRate = float(targetSamplingRate)
-        except ValueError,e:
+        except ValueError as e:
             raise Exception("Invalid value for targetSamplingRate - expected float:\n  %s." % e.message)
 
         if allowedGainCodes is None or not isinstance(allowedGainCodes, list): raise Exception("allowedGainCodes should not be None - expected [ ... ]")
@@ -773,7 +773,7 @@ class BaseBuilder(object):
             raise Exception("Cannot read file, %s" % filename)
 
         try:
-            iofile = open(filename, "r")
+            iofile = open(filename, "rb")
             request = pickle.load(iofile)
             iofile.close()
         except:
@@ -792,6 +792,6 @@ class BaseBuilder(object):
         if request is None:
             raise Exception("Request cannot be empty")
 
-        iofile = open(filename, "w")
+        iofile = open(filename, "wb")
         pickle.dump(request, iofile)
         iofile.close()
