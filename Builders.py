@@ -126,6 +126,12 @@ class FDSNBuilder(BaseBuilder):
         if z[0] is None or n[0] is None or e[0] is None:
             raise NextItem("No Z, N or E channel(s) found considering loc/gain=%s" % (instcode))
 
+        if z[0] != n[0] != e[0]:
+            raise NextItem("Wow, algorith selected different location codes for different orientation!")
+
+        if z[2] != n[2] != e[2]:
+            raise NextItem("Wow, algorith selected different sampling codes for different orientation!")
+
         # Return only (location, channel, azimuth, dip)
         z = (z[0], z[1], z[3], z[4])
         n = (n[0], n[1], n[3], n[4])
