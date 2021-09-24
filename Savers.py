@@ -344,10 +344,22 @@ class QSaver(Saver):
             trace.stats.sh['P-ONSET'] = phase.time
 
     def _fix_station_headers(self, stream, request):
-        ''' Seismic Handler does not store info 
-            about stations in the file, on the other
-            hand this Saver updates the SH station file! '''
-        pass
+        for trace in stream:
+            stp = request[trace._f_linecount][5]
+            chalist = request[trace._f_linecount][4]
+            if not hasattr(trace.stats,"sh"):
+                trace.stats.sh = AttribDict({})
+
+            # Orientation
+            for cha in chalist:
+                sid = "%s.%s.%s" % (stp.stationId, cha[0], cha[1])
+                if sid == trace.id:
+                    trace.stats.sh['DCVREG']  = cha[2]
+                    trace.stats.sh['DCVINCI'] = cha[3]
+                    break
+            else:
+                print("Cannot decide on channel %s orientation" % trace.id, file=sys.stderr)
+                print("File %s will not have orientation set" % (self._getfilename(trace)), file=sys.stderr)
 
 class SacSaver(Saver):
     def __init__(self, debug = False):
