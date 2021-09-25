@@ -294,8 +294,9 @@ class Saver(object):
         return (n_initial, n_associate, n_window, n_rms, n_spike, n_tree, written)
 
 class QSaver(Saver):
-    def __init__(self, debug = False):
+    def __init__(self, debug = False, usenet_inname = False):
         Saver.__init__(self, debug)
+        self.usenet_inname = usenet_inname
 
     def _extract(self, folder, key, request, stream):
         if len(stream) == 0: return 0
@@ -312,7 +313,10 @@ class QSaver(Saver):
             statinf = ShStation(os.path.join(base,"STATINF.DAT"))
             for item in request:
                 stp = item[5]
-                stcode = stp.stationId.split(".")[1]
+                if self.usenet_inname:
+                    stcode = stp.stationId
+                else:
+                    stcode = stp.stationId.split(".")[1]
                 if not statinf.has(stcode):
                     statinf.add(stcode, stp.latitude, stp.longitude, stp.elevation)
             statinf.save()
@@ -349,6 +353,12 @@ class QSaver(Saver):
             chalist = request[trace._f_linecount][4]
             if not hasattr(trace.stats,"sh"):
                 trace.stats.sh = AttribDict({})
+
+            # Station code
+            if self.usenet_inname:
+                trace.stats.sh['STATION'] = stp.stationId
+            else:
+                trace.stats.sh['STATION'] = stp.stationId.split(".")[1]
 
             # Orientation
             for cha in chalist:
