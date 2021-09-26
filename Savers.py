@@ -314,7 +314,7 @@ class QSaver(Saver):
             for item in request:
                 stp = item[5]
                 if self.usenet_inname:
-                    stcode = stp.stationId
+                    stcode = "".join(stp.stationId.split("."))
                 else:
                     stcode = stp.stationId.split(".")[1]
                 if not statinf.has(stcode):

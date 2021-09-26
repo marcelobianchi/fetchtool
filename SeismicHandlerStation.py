@@ -88,7 +88,7 @@ class ShStation(object):
             if isinstance(line, str):
                 iofile.write(line)
             elif isinstance(line,dict):
-                iofile.write("%-8s " % line["stcode"])
+                iofile.write("%-7s " % line["stcode"])
                 for k in [ "lat", "lon", "elevation", "array", "xrel", "yrel", "name"]:
                     if k in line:
                         iofile.write("%s:%s " % (k,line[k]))
