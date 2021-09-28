@@ -356,7 +356,7 @@ class QSaver(Saver):
 
             # Station code
             if self.usenet_inname:
-                trace.stats.sh['STATION'] = stp.stationId
+                trace.stats.sh['STATION'] = "".join(stp.stationId.split("."))
             else:
                 trace.stats.sh['STATION'] = stp.stationId.split(".")[1]
 
