@@ -610,10 +610,11 @@ class BaseBuilder(object):
     @staticmethod
     def filter_channels(request, allowedChannels = "Z"):
         for evk in request:
+            if evk == "STATUS" : continue
             ev = request[evk]
             lines = []
             for line in ev:
-                items = filter(lambda x: allowedChannels in x[1], line[4])
+                items = list(filter(lambda x: allowedChannels in x[1], line[4]))
                 line = (line[0], line[1], line[2], line[3], items, line[5], line[6], line[7])
                 lines.append(line)
             request[evk] = lines
