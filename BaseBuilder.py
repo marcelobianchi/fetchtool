@@ -625,6 +625,7 @@ class BaseBuilder(object):
         keys = request.keys()
         ndel = 0
         for evk in keys:
+            if evk == 'STATUS': continue
             ev = request[evk]
             lines = []
             for line in ev:
