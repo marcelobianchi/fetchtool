@@ -126,7 +126,7 @@ class Sc3ArclinkFetcher(BaseFetcher):
             # Append Streams
             stream += traces
 
-        except ArclinkError,e:
+        except ArclinkError as e:
             self._logquery(request.status())
             request.purge()
             print("  Arclink Message: %s" % str(e))

@@ -46,7 +46,7 @@ class FDSNFetcher(BaseFetcher):
         self._all_in_one = allinone
         self._merge = merge
 
-    def work(self, key, items):
+    def work_bulk(self, key, items):
         stream = Stream()
         bulk = []
         for (t0, t1, net, sta, channels, _, _, _) in items:
@@ -63,7 +63,37 @@ class FDSNFetcher(BaseFetcher):
         except AttributeError as e:
             # This is a fix for the client
             print("%s.%s.%s.%s %s" % (net,sta,loc,cha,str(e)), file=sys.stderr)
+        except timeout as e:
+            print("%s.%s.%s.%s %s" % (net,sta,loc,cha,str(e)), file=sys.stderr)
     
+        return stream
+
+    def work_single(self, key, items):
+        stream = Stream()
+
+        for (t0, t1, net, sta, channels, _, _, _) in items:
+            sta_stream = Stream()
+            for (loc, cha, _, _) in channels:
+                try:
+                    trace = self._fc.get_waveforms(net,sta,loc,cha,t0,t1)
+                except fdsn.header.FDSNException as e:
+                    print("%s.%s.%s.%s %s" % (net,sta,loc,cha,str(e)), file=sys.stderr)
+                    break
+                except AttributeError as e:
+                    # This is a fix for the client
+                    print("%s.%s.%s.%s %s" % (net,sta,loc,cha,str(e)), file=sys.stderr)
+                    break
+                except:
+                    print("%s.%s.%s.%s Unknown error" % (net,sta,loc,cha), file=sys.stderr)
+                    break
+
+                if self._merge:
+                    traces.merge(method=1, fill_value="interpolate")
+                sta_stream += trace
+
+            if len(sta_stream) == len(channels):
+                stream += sta_stream
+
         return stream
 
 class Downloader(object):
@@ -151,7 +181,7 @@ class Downloader(object):
         if not os.path.isdir(folder): os.mkdir(folder)
         self.__saveraw = True
 
-    def work(self, requests):
+    def work(self, requests, bulk=True):
 
         print("\n\nWorking on %d requests" % (len(requests) - 1), file=sys.stderr)
 
@@ -172,7 +202,11 @@ class Downloader(object):
 
             # Fetch
             if self._fetcher:
-                data = self._fetcher.work(key, request)
+                if bulk:
+                    data = self._fetcher.work_bulk(key, request)
+                else:
+                    data = self._fetcher.work_single(key, request)
+
                 if data == None or len(data) == 0:
                     print("  No Data for Node %s" % key, file=sys.stderr)
 
