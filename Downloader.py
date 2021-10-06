@@ -50,16 +50,21 @@ class FDSNFetcher(BaseFetcher):
         stream = Stream()
         
         allbulk = []
+        bulk = []
+        
         for (t0, t1, net, sta, channels, _, _, _) in items:
-            bulk = []
-            
             for (loc, cha, _, _) in channels:
                 bulk.append((net,sta,loc,cha,t0,t1))
             
-            if not self._all_in_one:
-                allbulk.append(bulk)
-                bulk = []
+            if self._all_in_one:
+                continue
             
+            allbulk.append(bulk)
+            bulk = []
+        
+        if len(bulk) > 0:
+            allbulk.append(bulk)
+        
         for bulk in allbulk:
             try:
                 traces = self._fc.get_waveforms_bulk(bulk)
