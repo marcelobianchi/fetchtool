@@ -72,14 +72,14 @@ class FDSNFetcher(BaseFetcher):
                     traces.merge(method=1, fill_value="interpolate")
                 stream += traces
             except fdsn.header.FDSNException as e:
-                print("%s.%s.%s.%s %s" % (net,sta,loc,cha,str(e)), file=sys.stderr)
+                print("%s.%s %s" % (bulk[0][0],bulk[0][1],str(e)), file=sys.stderr)
             except AttributeError as e:
                 # This is a fix for the client
-                print("%s.%s.%s.%s %s" % (net,sta,loc,cha,str(e)), file=sys.stderr)
+                print("%s.%s %s" % (bulk[0][0],bulk[0][1],str(e)), file=sys.stderr)
             except timeout as e:
-                print("%s.%s.%s.%s %s" % (net,sta,loc,cha,str(e)), file=sys.stderr)
+                print("%s.%s %s" % (bulk[0][0],bulk[0][1],str(e)), file=sys.stderr)
             except:
-                print("%s.%s.%s.%s Unknown error" % (net,sta,loc,cha), file=sys.stderr)
+                print("%s.%s Unknown error" % (bulk[0][0],bulk[0][1]), file=sys.stderr)
         
         return stream
 
