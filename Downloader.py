@@ -41,29 +41,41 @@ class FDSNFetcher(BaseFetcher):
             raise Exception("Invalid parameter hostorclient, type missmatch.")
 
         if allinone:
-            print("This is only a compatibility parameter, will be ignored", file=sys.stderr)
+            print("Since all in one is given will BULK all requests into one", file=sys.stderr)
 
         self._all_in_one = allinone
         self._merge = merge
 
     def work(self, key, items):
         stream = Stream()
-        bulk = []
+        
+        allbulk = []
         for (t0, t1, net, sta, channels, _, _, _) in items:
+            bulk = []
+            
             for (loc, cha, _, _) in channels:
                 bulk.append((net,sta,loc,cha,t0,t1))
             
-        try:
-            traces = self._fc.get_waveforms_bulk(bulk)
-            if self._merge:
-                traces.merge(method=1, fill_value="interpolate")
-            stream += traces
-        except fdsn.header.FDSNException as e:
-            print("%s.%s.%s.%s %s" % (net,sta,loc,cha,str(e)), file=sys.stderr)
-        except AttributeError as e:
-            # This is a fix for the client
-            print("%s.%s.%s.%s %s" % (net,sta,loc,cha,str(e)), file=sys.stderr)
-    
+            if not self._all_in_one:
+                allbulk.append(bulk)
+                bulk = []
+            
+        for bulk in allbulk:
+            try:
+                traces = self._fc.get_waveforms_bulk(bulk)
+                if self._merge:
+                    traces.merge(method=1, fill_value="interpolate")
+                stream += traces
+            except fdsn.header.FDSNException as e:
+                print("%s.%s.%s.%s %s" % (net,sta,loc,cha,str(e)), file=sys.stderr)
+            except AttributeError as e:
+                # This is a fix for the client
+                print("%s.%s.%s.%s %s" % (net,sta,loc,cha,str(e)), file=sys.stderr)
+            except timeout as e:
+                print("%s.%s.%s.%s %s" % (net,sta,loc,cha,str(e)), file=sys.stderr)
+            except:
+                print("%s.%s.%s.%s Unknown error" % (net,sta,loc,cha), file=sys.stderr)
+        
         return stream
 
 class Downloader(object):
