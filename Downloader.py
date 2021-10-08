@@ -25,6 +25,7 @@ from obspy import read as oREAD, Stream
 
 import shutil, os, sys
 from Savers import Saver
+from socket import timeout
 
 class BaseFetcher(object):
     pass
@@ -200,7 +201,7 @@ class Downloader(object):
                     for extracter in self._savers:
                         if extracter is None: continue
                         result = extracter.work(self._buildfolder(key), key, request, data)
-                        print("  Wrote (In:%d Assoc:%d nWin:%d rms:%d spike:%d 3c:%d) -- %d files" % result, file=sys.stderr)
+                        print("  Wrote (In:%d Assoc:%d nWin:%d rms:%d spike:%d 3c:%d nHead:%d) -- %d files" % result, file=sys.stderr)
 
 if __name__ == "__main__":
     pass

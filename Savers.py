@@ -283,15 +283,16 @@ class Saver(object):
         n_tree = len(stream)
 
         # Fill the headers available for SAC file format
-        self._fix_station_headers(stream, request)
         self._fix_event_headers(stream, request)
+        stream = self._fix_station_headers(stream, request)
+        n_head = len(stream)
 
         ## Extract
         written = self._extract(folder, key, request, stream)
 
         del stream
 
-        return (n_initial, n_associate, n_window, n_rms, n_spike, n_tree, written)
+        return (n_initial, n_associate, n_window, n_rms, n_spike, n_tree, n_head, written)
 
 class QSaver(Saver):
     def __init__(self, debug = False, usenet_inname = False):
@@ -348,6 +349,10 @@ class QSaver(Saver):
             trace.stats.sh['P-ONSET'] = phase.time
 
     def _fix_station_headers(self, stream, request):
+        stream_head = Stream()
+        stream_aux = Stream()
+        aux = []
+
         for trace in stream:
             stp = request[trace._f_linecount][5]
             chalist = request[trace._f_linecount][4]
@@ -366,10 +371,25 @@ class QSaver(Saver):
                 if sid == trace.id:
                     trace.stats.sh['DCVREG']  = cha[2]
                     trace.stats.sh['DCVINCI'] = cha[3]
+                    stream_aux += trace
+                    aux.append('OK')
                     break
             else:
                 print("Cannot decide on channel %s orientation" % trace.id, file=sys.stderr)
-                print("File %s will not have orientation set" % (self._getfilename(trace)), file=sys.stderr)
+                aux.append('NOT OK')
+            
+            if len(aux)==3:
+                if 'NOT OK' not in aux:
+                    stream_head += stream_aux
+                    stream_aux = Stream()
+                    aux = []
+                else:
+                    print("Will not use %s ... moving on\n" % (stp.stationId), file=sys.stderr)
+                    stream_aux = Stream()
+                    aux = []
+
+        return stream_head
+
 
 class SacSaver(Saver):
     def __init__(self, debug = False):
