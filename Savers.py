@@ -283,8 +283,9 @@ class Saver(object):
         n_tree = len(stream)
 
         # Fill the headers available for SAC file format
-        self._fix_station_headers(stream, request)
         self._fix_event_headers(stream, request)
+        self._fix_station_headers(stream, request)
+
 
         ## Extract
         written = self._extract(folder, key, request, stream)
@@ -369,7 +370,7 @@ class QSaver(Saver):
                     break
             else:
                 print("Cannot decide on channel %s orientation" % trace.id, file=sys.stderr)
-                print("File %s will not have orientation set" % (self._getfilename(trace)), file=sys.stderr)
+                print("Channel %s on file %s will not have orientation set\n" % (trace.id, trace.stats.sh['COMMENT']), file=sys.stderr)
 
 class SacSaver(Saver):
     def __init__(self, debug = False):
