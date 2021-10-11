@@ -127,6 +127,7 @@ class Saver(object):
             except KeyError:
                 evid= []
                 ids[trace._f_evid] = evid
+            # BUG DEVERIA INCLUIR A LOCATION
             evid.append((trace.stats.channel, i, trace.stats.npts))
             i += 1
 
@@ -204,6 +205,65 @@ class Saver(object):
         # Clean up bad IDS
         self._cleanids("RMS Check", stream, [])
 
+    @staticmethod
+    def _decimate_resolver(from_sps, to_sps):
+        table = {}
+        done = [ 0 ]
+        work = [ to_sps ]
+
+        # Build a reduction table
+        ##
+        while max(done) <= from_sps:
+            base = work.pop(0)
+            if base in done: continue
+            table[base] = dict([ (i*base,[i]) for i in [2,3,5,7]])
+            work.extend(list(table[base].keys()))
+            work.sort()
+            done.append(base)
+
+        coefs = []
+        ctable = table[to_sps]
+        del table[to_sps]
+
+        # Reduce
+        ##
+        while table:
+            if from_sps in ctable:
+                return ctable[from_sps] # Found it
+            
+            for k,kl in list(ctable.items()):
+                if k not in table: continue
+                for i,il in list(table[k].items()):
+                    if i in ctable: continue
+                    ctable[i] = il + kl
+                del table[k]
+
+        return None
+
+    def _resample_data(self, stream, request):
+        if not self.parameters.resample.enabled: return
+        
+        for trace in stream:
+            if trace.stats.sampling_rate == self.parameters.resample.sps: continue
+            chain = self._decimate_resolver(trace.stats.sampling_rate, self.parameters.resample.sps)
+            
+            if self._debug:
+                print(f'Decimation from {trace.stats.sampling_rate} to {self.parameters.resample.sps} using {chain if chain is not None else "INTERPOLATION"}', file = sys.stderr)
+            
+            if chain is None:
+                if trace.stats.sampling_rate >= self.parameters.resample.sps:
+                    maxfreq =  (self.parameters.resample.sps / 2.) * 0.95
+                    print(f'Filtering prior to interpolation f < {maxfreq} to match sps = {self.parameters.resample.sps}', file = sys.stderr)
+                    trace.filter('lowpass_cheby_2', freq = maxfreq)
+                
+                trace.interpolate(sampling_rate = self.parameters.resample.sps)
+                continue
+            
+            for link in chain:
+                trace.decimate(link)
+            
+        return
+
     def _fix_event_headers(self, stream, request):
         raise Exception("Base Class Saver -- Not implemented")
 
@@ -230,6 +290,20 @@ class Saver(object):
         self.parameters.spike.window  = window
         self.parameters.spike.ratio   = ratio
 
+    def disableresample(self):
+        self.parameters.resample.enabled = False
+	self.parameters.resample.sps = None
+
+    def enableresample(self, sps):
+        self.parameters.resample.enabled = True
+        
+        if sps < 1:
+            print(f'SPS value = {sps} < 1, assuming dt was given!', file = sys.stderr)
+            sps = int(1/sps)
+        
+        self.parameters.resample.sps = sps
+        if self._debug: print(f'Enabling decimate/interpolate using an SPS = {sps}.', file=sys.stderr)
+    
     def __initParameters(self):
         parameters = AttribDict({})
 
@@ -253,6 +327,11 @@ class Saver(object):
         parameters.spike.window  = None
         parameters.spike.ratio   = None
 
+        # Ressampler
+        parameters.resample = AttribDict({})
+        parameters.resample.enabled = False
+        parameters.resample.sps = None
+        
         return parameters
 
     def work(self, folder, key, request, stream):
@@ -286,7 +365,8 @@ class Saver(object):
         self._fix_station_headers(stream, request)
         self._fix_event_headers(stream, request)
 
-        ## Extract
+        ## Resample & Extract
+        self._resample_data(stream, request)
         written = self._extract(folder, key, request, stream)
 
         del stream
