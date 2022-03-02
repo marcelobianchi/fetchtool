@@ -223,6 +223,7 @@ class FDSNBuilder(BaseBuilder):
                         tryid = 1
                         while tryid < 5 and events == "INVALID":
                             try:
+                                print("Getting events ..")
                                 events = self.e_fdsn_client.get_events(**kwargsevent)
                             except socket.timeout:
                                 print('Failed . try %d' % tryid)
@@ -234,6 +235,7 @@ class FDSNBuilder(BaseBuilder):
                                 pass
                         if events == "INVALID": events = None
                     except fdsn.header.FDSNException as e:
+                        print("FAILED:", e)
                         events = None
 
                     # Event loop
