@@ -70,21 +70,6 @@ class BadParameter(Exception):
 class NextItem(Exception):
     pass
 
-def unWrapNSLC(objs, archive = None, onlyShared = False):
-    # unwrap lists of lists into arrays of tuples
-    clist = []
-    for (code, spam) in objs.items():
-        for (start, obj) in spam.items():
-            try:
-                if archive and getattr(obj, "archive") != archive:
-                    continue
-                if onlyShared and getattr(obj, "shared") == False:
-                    continue
-            except:
-                pass
-            clist.append((code, start, obj))
-    return clist
-
 class Range(object):
     def __init__(self, minvalue, maxvalue):
         self._min = min([minvalue,maxvalue]) if minvalue != None and maxvalue != None else minvalue
@@ -402,8 +387,8 @@ class BaseBuilder(object):
         if targetSamplingRate is None: raise Exception("targetSamplingRate should not be None")
         try:
             targetSamplingRate = float(targetSamplingRate)
-        except ValueError as e:
-            raise Exception("Invalid value for targetSamplingRate - expected float:\n  %s." % e.message)
+        except ValueError:
+            raise Exception("Invalid value for targetSamplingRate - expected float.")
 
         if allowedGainCodes is None or not isinstance(allowedGainCodes, list): raise Exception("allowedGainCodes should not be None - expected [ ... ]")
         if phasesOrPhaseGroup is None: raise Exception("phasesOrPhaseGroup should not be None - expected a phase name or group")
