@@ -22,7 +22,7 @@ from __future__ import division, print_function
 
 from BaseBuilder import BaseBuilder, NextItem, BadParameter
 
-import sys,socket
+import sys,socket,os
 
 '''
   Clients
@@ -64,6 +64,9 @@ class FDSNBuilder(BaseBuilder):
                 self.s_fdsn_client = fdsn_station_url
             else:
                 raise BadParameter("Invalid station_serverorurl object, expected String address of fdsnClient Class")
+
+    def __str__(self):
+        return f'FDSNBuilder w/ events = {self.e_fdsn_client.base_url} and data {self.s_fdsn_client.base_url}'
 
     '''
     FDSN specific Methods
@@ -202,7 +205,7 @@ class FDSNBuilder(BaseBuilder):
             for network in inventory.networks:
                 # On Stations found
                 for station in network.stations:
-                    print("\n Working on station %s.%s" % (network.code, station.code), file=sys.stderr)
+                    print("\nWorking on station %s.%s" % (network.code, station.code), file=sys.stderr)
 
                     evsdate = t0
                     if station.start_date and station.start_date > evsdate: evsdate = station.start_date
@@ -225,14 +228,14 @@ class FDSNBuilder(BaseBuilder):
                         tryid = 1
                         while tryid < 5 and events == "INVALID":
                             try:
-                                print("Getting events ..")
+                                # ~ print("Getting events ..")
                                 events = self.e_fdsn_client.get_events(**kwargsevent)
                             except socket.timeout:
-                                print('Failed . try %d' % tryid)
+                                print('Failed to get ev. try %d' % tryid)
                                 tryid = tryid + 1
                                 pass
                             except socket.error:
-                                print('Failed . try %d' % tryid)
+                                print('Failed to get ev. try %d' % tryid)
                                 tryid = tryid + 1
                                 pass
                         if events == "INVALID": events = None
@@ -242,14 +245,14 @@ class FDSNBuilder(BaseBuilder):
 
                     # Event loop
                     if events is None or len(events) < 0:
-                        print("  No Events Found.", file=sys.stderr)
+                        print(" No Events Found.", file=sys.stderr)
                         continue
 
                     for event in events:
                         try:
                             (origin, magnitude) = self._getOrigin(event)
 
-                            print("  Working on origin: %s" % str(origin.time), end="", file=sys.stderr)
+                            print(" Working on origin: %s" % str(origin.time), end="", file=sys.stderr)
                             self._build(lines,
                                        network, station, origin, magnitude,
                                        phaselist, phasename,
@@ -337,7 +340,7 @@ class FDSNBuilder(BaseBuilder):
                     print("\n No stations for pattern: %s.%s" % (net, sta), file=sys.stderr)
                     continue
 
-                print("\n Stations for pattern: %s.%s" % (net,sta), file=sys.stderr)
+                print(" Stations for pattern: %s.%s" % (net,sta), file=sys.stderr)
                 # Event loop
                 for network in inventory.networks:
                     for station in network.stations:
@@ -349,7 +352,7 @@ class FDSNBuilder(BaseBuilder):
                                        targetSamplingRate, allowedLocGainList, dataWindowRange)
                             print("OK!", file=sys.stderr)
                         except NextItem as e:
-                            print("\n  Skipping: %s" % str(e), file=sys.stderr)
+                            print(" -- Skipping: %s" % str(e), file=sys.stderr)
 
         request = self._organize_by_event(lines)
 
@@ -366,11 +369,11 @@ class CSVBuilder(BaseBuilder):
     Separators and also be [ ], [,] or even [;].
     '''
 
-    def __init__(self, time_lon_lat_dep_mag_file, arclink_or_fdsn, debug = False):
+    def __init__(self, time_lon_lat_dep_in_km_mag_file, fdsn_station_url, debug = False):
         BaseBuilder.__init__(self)
         
-        self._evfile = time_lon_lat_dep_mag_file
-        self._client = fdsn.Client(arclink_or_fdsn, debug = debug)
+        self._evfile = time_lon_lat_dep_in_km_mag_file
+        self._client = fdsn.Client(fdsn_station_url, debug = debug)
         
         return
 
@@ -417,15 +420,13 @@ class CSVBuilder(BaseBuilder):
                 event.time = time
                 event.latitude = lat
                 event.longitude = lon
-                event.depth = dep
+                event.depth = dep * 1000.0
                 magnitude.mag = mag
                 
                 '''
                 Yield Data
                 '''
                 yield (event, magnitude)
-
-        raise StopIteration()
     
     def __loadstFDSN(self, net, sta, t0, t1, stationRestrictionArea, origin = None, distanceRange = None):
         if origin is not None:
@@ -448,7 +449,7 @@ class CSVBuilder(BaseBuilder):
         
         if inventory is None or len(inventory.networks) == 0:
             print("\n No stations for pattern: %s.%s" % (net, sta), file=sys.stderr)
-            raise StopIteration("No Stations.")
+            return
         
         for network in inventory.networks:
             for station in network.stations:
@@ -456,8 +457,6 @@ class CSVBuilder(BaseBuilder):
                 Yield Data
                 '''
                 yield network, station
-        
-        raise StopIteration()
 
     '''
     Request Builder Methods
@@ -574,5 +573,78 @@ class CSVBuilder(BaseBuilder):
   Test Main Code
 '''
 if __name__ == "__main__":
-    pass
+    if not os.path.isfile("catalog.xy"):
+        print("Please run prepare_tests.py first!")
+        sys.exit(1)
 
+    from BaseBuilder import Range, AreaRange
+    
+    iris = FDSNBuilder("IRIS")
+    print("iris = ", iris)
+
+    usp  = FDSNBuilder("IRIS", "USP")
+    print("usp  = ", usp)
+
+    print("\n Using USP server \n")
+
+    print("\n** 3 events with stations from BL.AQDB only\n")
+    rq = usp.stationBased("2020-01-01", "2021-01-01", 100, [ "H" ], Range(5,10), "ttp",
+                    "BL.AQDB",
+                    AreaRange.WORLD(),
+
+                    eventRestrictionArea = AreaRange(0,180,0,90),
+                    magnitudeRange = Range(7,10),
+                    depthRange = None,
+                    distanceRange = None)
+    
+    usp.show_request(rq)
+    
+    print("\n** Same 3 events with stations from BL only\n")
+    rq = usp.eventBased("2020-01-01", "2021-01-01", 100, [ "H" ], Range(5,10), "ttp",
+                   AreaRange(0,180,0,90),
+                   Range(7,10),
+                   Range.ALLDEPTHS(),
+
+                   networkStationList = [ "BL.*", "BR.*" ],
+                   stationRestrictionArea = None,
+                   distanceRange = None)
+    
+    usp.show_request(rq)
+
+    print("\n** Testing CSV class \n")
+
+    csv = CSVBuilder("catalog.xy", "USP")
+
+    rq = csv.stationBased("2020-01-01", "2023-01-01", 100, [ "H" ], Range(5,10), "ttp",
+                    "BL.AQDB",
+                    AreaRange.WORLD(),
+
+                    eventRestrictionArea = None,
+                    magnitudeRange = Range(6,10),
+                    depthRange = None,
+                    distanceRange = None)
+
+    csv.show_request(rq)
+
+    rq = csv.eventBased("2020-01-01", "2023-01-01", 100, [ "H" ], Range(5,10), "ttp",
+                   AreaRange.WORLD(),
+                   Range.ALLMAGS(),
+                   Range.ALLDEPTHS(),
+
+                   networkStationList = [ "BL.A*" ],
+                   stationRestrictionArea = None,
+                   distanceRange = Range(0,120))
+
+    csv.show_request(rq)
+
+    rq = csv.stationBased("2020-01-01", "2023-01-01", 100, [ "H" ], Range(5,10), "ttp",
+                    "BL.AQDB",
+                    AreaRange.WORLD(),
+
+                    eventRestrictionArea = None,
+                    magnitudeRange = None,
+                    depthRange = Range(0,40),
+                    distanceRange = None)
+
+    csv.show_request(rq)
+    
