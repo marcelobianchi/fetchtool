@@ -355,6 +355,7 @@ class FDSNBuilder(BaseBuilder):
 
         return request
 
+
 class CSVBuilder(BaseBuilder):
     '''
     Build a request from a Text File for Event and a FDSN/ArcLink server for stations.
@@ -369,13 +370,7 @@ class CSVBuilder(BaseBuilder):
         BaseBuilder.__init__(self)
         
         self._evfile = time_lon_lat_dep_mag_file
-        if arclink_or_fdsn.find("http://") == -1:
-            (host,port,user) = arclink_or_fdsn.strip().replace("/",":").split(":")
-            self._client = ArclinkManager("%s:%s" % (host,port), user)
-            self._client_type = 'arclink'
-        else:
-            self._client = fdsn.Client(arclink_or_fdsn, debug = debug)
-            self._client_type = 'fdsn'
+        self._client = fdsn.Client(arclink_or_fdsn, debug = debug)
         
         return
 
@@ -383,26 +378,15 @@ class CSVBuilder(BaseBuilder):
     CSV specific Methods
     '''
     def _getChannelList(self, station, t0, targetsps, instcode):
-        
-        if self._client_type == "arclink":
-            return ArcLinkFDSNBuilder._getChannelList(station, t0, targetsps, instcode)
-        
-        if self._client_type == "fdsn":
-            return FDSNBuilder._getChannelList(station, t0, targetsps, instcode)
-        
-        raise Exception("Bad Client!")
+        return FDSNBuilder._getChannelList(station, t0, targetsps, instcode)
     
     def __loadcsv(self, t0, t1, evr, mr, dr, station = None, distanceRange = None):
         event     = AttribDict()
         magnitude = AttribDict()
         
         if station is not None:
-            if self._client_type == "arclink":
-                t0 = station.start
-                t1 = station.end
-            elif self._client_type == "fdsn":
-                t0 = station.start_date
-                t1 = station.end_date
+            t0 = station.start_date
+            t1 = station.end_date
         
         with open(self._evfile, "r") as fio:
             for line in fio:
@@ -441,39 +425,6 @@ class CSVBuilder(BaseBuilder):
                 '''
                 yield (event, magnitude)
 
-        raise StopIteration()
-    
-    def __loadstArclink(self, net, sta, t0, t1, stationRestrictionArea, origin = None, distanceRange = None):
-        if origin is not None:
-            t0 = origin.time - 86400
-            t1 = origin.time + 86400
-        
-        inventory = self._client.get_inventory(net, sta, "*", "*", t0.datetime, t1.datetime)
-        
-        if inventory is None or len(inventory.network) == 0:
-            print("\n No stations for pattern: %s.%s" % (net, sta), file=sys.stderr)
-            raise StopIteration("No Stations.")
-        
-        # Station loop
-        for (_, _, network) in  unWrapNSLC(inventory.network):
-            for (_, _, station) in  unWrapNSLC(network.station):
-                '''
-                Checks
-                '''
-                if origin is not None and distanceRange is not None:
-                    delta = geodetics.locations2degrees(station.latitude,
-                                               station.longitude,
-                                               origin.latitude,
-                                               origin.longitude)
-                    if not distanceRange.good(delta): continue
-                if stationRestrictionArea is not None:
-                    if not stationRestrictionArea.good(station.longitude, station.latitude):
-                        continue
-                '''
-                Yield Data
-                '''
-                yield network, station
-        
         raise StopIteration()
     
     def __loadstFDSN(self, net, sta, t0, t1, stationRestrictionArea, origin = None, distanceRange = None):
@@ -550,13 +501,7 @@ class CSVBuilder(BaseBuilder):
             for code in networkStationList:
                 (net, sta) = code.split(".")
                 
-                if self._client_type == "arclink":
-                    iterator = self.__loadstArclink(net, sta, t0, t1, stationRestrictionArea, origin, distanceRange)
-                elif self._client_type == "fdsn":
-                    iterator = self.__loadstFDSN(net, sta, t0, t1, stationRestrictionArea, origin, distanceRange)
-                else:
-                    raise Exception("Bad Client.")
-                
+                iterator = self.__loadstFDSN(net, sta, t0, t1, stationRestrictionArea, origin, distanceRange)
                 for network, station in iterator:
                     try:
                         print("  Working on station %s.%s " % (network.code, station.code), end="", file=sys.stderr)
@@ -606,10 +551,7 @@ class CSVBuilder(BaseBuilder):
         for code in networkStationList:
             (net, sta) = code.split(".")
 
-            if self._client_type == "arclink":
-                iterator = self.__loadstArclink(net, sta, t0, t1, stationRestrictionArea, None, None)
-            else:
-                iterator = self.__loadstFDSN(net, sta, t0, t1, stationRestrictionArea, None, None)
+            iterator = self.__loadstFDSN(net, sta, t0, t1, stationRestrictionArea, None, None)
 
             for network, station in iterator:
                 print("\n Working on station %s.%s" % (network.code, station.code), file=sys.stderr)
@@ -632,48 +574,5 @@ class CSVBuilder(BaseBuilder):
   Test Main Code
 '''
 if __name__ == "__main__":
-    from BaseBuilder import Range, AreaRange
-#     rb = ArcLinkRequestBuilder("IRIS","seisrequest.iag.usp.br:18001:m.bianchi@iag.usp.br")
-#     rb = FDSNBuilder("IRIS")
-
-#     req = rb.load_request("request.pik")
-
-#     Call the stationBased
-#     req = rb.eventBased(t0 = UTCDateTime("2007-01-01"),
-#                         t1 = UTCDateTime("2008-01-01"),
-#                         targetSamplingRate = 20.0,
-#                         allowedLocGainList = ["H", "L"],
-#                         dataWindowRange = Range(-120, 600),
-#                         phasesOrPhaseGroupList = "pgroup",
-#
-#                         networkStationList = [ "TA.A*"],
-#                         stationRestrictionArea = AreaRange(-150.0, -90.0, 15.0, 60.0),
-#
-#                         eventRestrictionArea = AreaRange(-35.0, -10.0, -55.0, -60.0),
-#                         magnitudeRange = Range(6.2, 9.0),
-#                         depthRange = Range(0.0, 400.0),
-#                         distanceRange = None
-#                         )
-#
-#     rb.show_request(req)
-
-#     rb.save_request("request.pik", req)
-#     rb.show_request(req)
-
-#     rq = rb.load_request("xc-phase2")
-#     rb.event_list(rq, separator="\t")
-#     rb.station_list(rq, separator="\t")
-#
-#     rb = CSVBuilder("ff", "seismaster:18001:m.bianchi@iag.usp.br")
-#     rb = CSVBuilder("ff", "http://seismaster:18003")
-#
-#     rq = rb.eventBased("2015-01-01", "2018-12-31", 100., ["H"], Range(-200, 200),
-#                        "pgroup", AreaRange.WORLD(), Range.ALLMAGS(), Range.ALLDEPTHS(), ["BX.LD*"], None, None)
-#
-#     rq = rb.stationBased("2015-01-01", "2018-12-31", 100., ["H"], Range(-200, 200), 
-#                          "pgroup", [ "BX.LD*" ], AreaRange.WORLD(), None, None, None, None)
-#     rb.save_request("teste.req", rq, True)
-#
-#     rq = rb.load_request("teste.req")
-#     BaseBuilder.show_request(rq, True)
     pass
+
