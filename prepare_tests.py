@@ -33,3 +33,8 @@ if __name__ == "__main__":
                   depthRange = Range.ALLDEPTHS(), networkStationList = [ "BL.AQDB", "BL.PCMB" ])
 
     Bb.save_request("test_request.rq", req, True)
+
+    with open("catalog.xy", "w") as fio:
+        print('2022-03-02T17:02:33.800613 156.122757 49.064957 72.0 5.143410091', file = fio)
+        print('2022-03-02T12:52:08.393036 -178.024078 -30.208561 36.0 6.560828342', file = fio)
+        print('2022-03-02T09:58:28.908054 69.857361 35.724659 99.0 6.022285749', file = fio)
