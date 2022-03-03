@@ -796,6 +796,10 @@ class BaseBuilder(object):
 
 
 if __name__ == "__main__":
+    if not os.path.isfile("test_request.rq"):
+        print("Please run prepare_tests.py first!")
+        sys.exit(1)
+    
     print("** Range **")
     print("All Depths = ",Range.ALLDEPTHS())
     print("All Dists  = ",Range.ALLDISTS())
