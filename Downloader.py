@@ -25,6 +25,7 @@ from obspy import read as oREAD, Stream
 
 import shutil, os, sys
 from Savers import Saver
+from socket import timeout
 
 class BaseFetcher(object):
     pass

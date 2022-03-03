@@ -64,26 +64,14 @@ class Status(object):
     def show(self):
         print("Status Level: ",self.level, "[",self.comment,"]")
 
+
 class BadParameter(Exception):
     pass
+
 
 class NextItem(Exception):
     pass
 
-def unWrapNSLC(objs, archive = None, onlyShared = False):
-    # unwrap lists of lists into arrays of tuples
-    clist = []
-    for (code, spam) in objs.items():
-        for (start, obj) in spam.items():
-            try:
-                if archive and getattr(obj, "archive") != archive:
-                    continue
-                if onlyShared and getattr(obj, "shared") == False:
-                    continue
-            except:
-                pass
-            clist.append((code, start, obj))
-    return clist
 
 class Range(object):
     def __init__(self, minvalue, maxvalue):
@@ -120,6 +108,10 @@ class Range(object):
     def ALLDEPTHS():
         return Range(0.0, 1000.0)
 
+    def __str__(self):
+        return f"Range from: {self.min()} to: {self.max()}"
+
+
 class AreaRange(object):
     def __init__(self, xmin, xmax, ymin, ymax):
         self.x = Range(xmin, xmax)
@@ -143,6 +135,10 @@ class AreaRange(object):
     @staticmethod
     def WORLD():
         return AreaRange(-180., 180., -90., 90)
+
+    def __str__(self):
+        return f'AreaRange from {self.xmin()} to {self.xmax()} and {self.ymin()} to {self.ymax()}'
+
 
 class BaseBuilder(object):
     def __init__(self):
@@ -402,8 +398,8 @@ class BaseBuilder(object):
         if targetSamplingRate is None: raise Exception("targetSamplingRate should not be None")
         try:
             targetSamplingRate = float(targetSamplingRate)
-        except ValueError as e:
-            raise Exception("Invalid value for targetSamplingRate - expected float:\n  %s." % e.message)
+        except ValueError:
+            raise Exception("Invalid value for targetSamplingRate - expected float.")
 
         if allowedGainCodes is None or not isinstance(allowedGainCodes, list): raise Exception("allowedGainCodes should not be None - expected [ ... ]")
         if phasesOrPhaseGroup is None: raise Exception("phasesOrPhaseGroup should not be None - expected a phase name or group")
@@ -585,7 +581,7 @@ class BaseBuilder(object):
         for evk in todelete:
             del request[evk]
         return request
-    
+
     @staticmethod
     def filter_timewindow(request, start = None, end = None):
         if start is None and end is None: raise BadParameter("Need start or end parameters")
@@ -797,3 +793,105 @@ class BaseBuilder(object):
         iofile = open(filename, "wb")
         pickle.dump(request, iofile)
         iofile.close()
+
+
+if __name__ == "__main__":
+    if not os.path.isfile("test_request.rq"):
+        print("Please run prepare_tests.py first!")
+        sys.exit(1)
+    
+    print("** Range **")
+    print("All Depths = ",Range.ALLDEPTHS())
+    print("All Dists  = ",Range.ALLDISTS())
+    print("All Mags   = ",Range.ALLMAGS())
+    print("")
+    R = Range(0,1)
+    print(R)
+    print(" 0 in R= ", R.good(0), "= True")
+    print(" 1 in R= ", R.good(1), "= True")
+    print(" 2 in R= ", R.good(2), "= False")
+    print("** End Range **")
+
+    print("\n")
+
+    print("** AreaRange **")
+    print("World = ",AreaRange.WORLD())
+    print("")
+    R = AreaRange(0,1,0,1)
+    print(R)
+    print(" 0.5/0.5 in R= ", R.good(0.5,0.5))
+    print(" 0/0 in R= ", R.good(0,0), "= True")
+    print(" 0/1 in R= ", R.good(0,1), "= True")
+    print(" 1/0 in R= ", R.good(1,0), "= True")
+    print(" 1/1 in R= ", R.good(1,1), "= True")
+    print(" 0/2 in R= ", R.good(0,2), "= False")
+    print(" 2/0 in R= ", R.good(2,0), "= False")
+    print(" 2/2 in R= ", R.good(2,2), "= False")
+    print(" 0/-2 in R= ", R.good(0,-2), "= False")
+    print(" -2/0 in R= ", R.good(-2,0), "= False")
+    print(" -2/-2 in R= ", R.good(-2,-2), "= False")
+    print("** End Range **")
+
+    print("\n")
+
+    print("** BaseBuilders **")
+    
+    # Assembly one request
+    
+    # Load
+    
+    try:
+        BaseBuilder.load_request("test_request")
+        print("Failed to refuse to load data")
+    except:
+        pass
+
+    try:
+        rq = BaseBuilder.load_request("test_request.rq")
+    except:
+        print("Failed to load a request")
+        sys.exit(1)
+    
+    try:
+        BaseBuilder.save_request("test_request.rq", rq, False)
+        print("Failed to refuse to rewrite a file")
+    except:
+        pass
+
+    # Lists
+    
+    print("\n** St/Ev List")
+    BaseBuilder.stev_list(rq)
+    print("**")
+    
+    print("\n** St List")
+    BaseBuilder.station_list(rq)
+    print("**")
+    
+    print("\n** Ev List")
+    BaseBuilder.event_list(rq)
+    print("**")
+    
+    print("\n** Show Request")
+    BaseBuilder.show_request(rq, True)
+    BaseBuilder.show_request(rq, False)
+    print("**")
+    
+    # ~ BaseBuilder.map_request(rq) ### NOT WORKING
+    
+    BaseBuilder.request_stats(rq)
+    
+    # Filters
+    
+    BaseBuilder.filter_channels(rq, "Z")
+    BaseBuilder.show_request(rq, True)
+    
+    BaseBuilder.filter_netsta(rq, [ "BL.AQDB" ])
+    BaseBuilder.show_request(rq, True)
+    
+    BaseBuilder.filter_timewindow(rq, UTCDateTime("2010-01-01"), UTCDateTime("2011-01-01"))
+    BaseBuilder.show_request(rq, True)
+    
+    # ~ BaseBuilder.filter_netStationEvent()  ### NOT TESTED
+    
+    print("** End BaseBuilders **")

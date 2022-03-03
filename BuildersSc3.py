@@ -1,8 +1,9 @@
 from __future__ import division, print_function
-from BaseBuilder import BaseBuilder, unWrapNSLC, NextItem, BadParameter
+from BaseBuilder import BaseBuilder, NextItem, BadParameter
 import sys,socket
 
 from seiscomp.arclink.manager import ArclinkManager
+from obspy.clients import fdsn
 
 '''
   Tools
@@ -10,6 +11,23 @@ from seiscomp.arclink.manager import ArclinkManager
 from obspy import UTCDateTime
 from obspy.core import AttribDict
 from obspy import geodetics
+
+
+def unWrapNSLC(objs, archive = None, onlyShared = False):
+    # unwrap lists of lists into arrays of tuples
+    clist = []
+    for (code, spam) in objs.items():
+        for (start, obj) in spam.items():
+            try:
+                if archive and getattr(obj, "archive") != archive:
+                    continue
+                if onlyShared and getattr(obj, "shared") == False:
+                    continue
+            except:
+                pass
+            clist.append((code, start, obj))
+    return clist
+
 
 '''
   Builders Definition
@@ -155,11 +173,11 @@ class ArcLinkFDSNBuilder(BaseBuilder):
         for event in events:
             try:
                 (origin, magnitude) = self._getOrigin(event)
-            except NextItem as e:
-                print("Skipping Origin: %s" % str(e), file=sys.stderr)
+            except NextItem:
+                print("Skipping Origin", file=sys.stderr)
                 continue
 
-            print("Working on origin: %s" % str(origin.time), file=sys.stderr)
+            print("\nWorking on origin: %s" % str(origin.time), file=sys.stderr)
 
             for code in networkStationList:
                 (net, sta) = code.split(".")
@@ -169,7 +187,7 @@ class ArcLinkFDSNBuilder(BaseBuilder):
                     print("No stations for pattern: %s.%s" % (net, sta), file=sys.stderr)
                     continue
 
-                print("\n Stations for pattern: %s.%s" % (net,sta), file=sys.stderr)
+                print(" Stations for pattern: %s.%s" % (net,sta), file=sys.stderr)
                 # Station loop
                 for (_, _, network) in  unWrapNSLC(inventory.network):
                     for (_, _, station) in  unWrapNSLC(network.station):
@@ -181,8 +199,8 @@ class ArcLinkFDSNBuilder(BaseBuilder):
                                          phaselist, phasename,
                                          targetSamplingRate, allowedLocGainList, dataWindowRange)
                             print("OK!", file=sys.stderr)
-                        except NextItem as e:
-                            print("\n  Skipping: %s" % str(e), file=sys.stderr)
+                        except NextItem:
+                            print("  Skipping.", file=sys.stderr)
 
         request = self._organize_by_event(lines)
 
@@ -220,6 +238,7 @@ class ArcLinkFDSNBuilder(BaseBuilder):
 
         ## Start the Loop
         # On the given station patterns
+
         for code in networkStationList:
             (net, sta) = code.split(".")
             inventory = self.__arclink_manager.get_inventory(net, sta, "*", "*", t0.datetime, t1.datetime)
@@ -228,11 +247,11 @@ class ArcLinkFDSNBuilder(BaseBuilder):
                 print("No stations for pattern: %s.%s" % (net, sta), file=sys.stderr)
                 continue
 
-            print("Stations for pattern: %s.%s" % (net,sta), file=sys.stderr)
+            print("\nStations for pattern: %s.%s" % (net,sta), file=sys.stderr)
             # Station Loop
             for (_, _, network) in  unWrapNSLC(inventory.network):
                 for (_, _, station) in  unWrapNSLC(network.station):
-                    print("\n Working on station %s.%s" % (network.code, station.code), file=sys.stderr)
+                    print(" Working on station %s.%s" % (network.code, station.code), file=sys.stderr)
 
                     # Start Build the parameters to pass on the Event Client
                     start = UTCDateTime(station.start) if station.start else t0
@@ -248,7 +267,7 @@ class ArcLinkFDSNBuilder(BaseBuilder):
 
                     try:
                         events = self.__fdsn_client.get_events(**kwargsevent)
-                    except fdsn.header.FDSNException as e:
+                    except fdsn.header.FDSNException:
                         events = None
 
                     if events is None or len(events) < 0:
@@ -265,8 +284,8 @@ class ArcLinkFDSNBuilder(BaseBuilder):
                                        phaselist, phasename,
                                        targetSamplingRate, allowedLocGainList, dataWindowRange)
                             print("OK!", file=sys.stderr)
-                        except NextItem as e:
-                            print("  Skipping: %s" % str(e), file=sys.stderr)
+                        except NextItem:
+                            print("  Skipping.", file=sys.stderr)
                             continue
 
         request = self._organize_by_station(lines)
