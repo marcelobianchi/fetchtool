@@ -75,8 +75,8 @@ class NextItem(Exception):
 
 class Range(object):
     def __init__(self, minvalue, maxvalue):
-        self._min = min([minvalue,maxvalue]) if minvalue != None and maxvalue != None else minvalue
-        self._max = max([minvalue,maxvalue]) if minvalue != None and maxvalue != None else maxvalue
+        self._min = minvalue # min([minvalue,maxvalue]) if minvalue != None and maxvalue != None else minvalue
+        self._max = maxvalue # max([minvalue,maxvalue]) if minvalue != None and maxvalue != None else maxvalue
 
     def min(self):
         return self._min
@@ -152,6 +152,56 @@ class BaseBuilder(object):
     @staticmethod
     def _getChannelList(station, t0, targetsps, instcode):
         raise Exception("Implement your own override !")
+
+    def _build_predefined(self, lines, network, station, origin, magnitude, NS, dataWindowRange):
+        
+        if len(NS) == 0:
+            raise BadParameter()
+        
+        ta = min([ NS[k][-1] for k in NS ])
+        tb = max([ NS[k][-1] for k in NS ])
+        
+        # We find some good defaults to reuse the method
+        allowedGainCodes = list(set([ NS[k][2] + "." + NS[k][3][-1] for k in NS ]))
+        
+        targetSamplingRate = 50
+        
+        sps = {
+            'L' : 1,
+            'B' : 20,
+            'H' : 100,
+            'S' : 80,
+            'E' : 500,
+            'M' : 10,
+            'C' : 1000
+        }
+        
+        try:
+            targetSamplingRate = max(list(set([ sps[NS[k][3][0]] for k in NS ])))
+        except:
+            print("\nFailed to callibrate sampling rate", file = sys.stderr)
+        
+        # This method is overriden in each implementation
+        (z,n,e) = self._getChannelList(station, ta, targetSamplingRate, allowedGainCodes)
+        
+        EI = self.__build_event_dictionary(origin.time, origin.latitude, origin.longitude, origin.depth, magnitude.mag)
+        SI = self.__build_station_dictionary(network.code, station.code, station.latitude, station.longitude, station.elevation)
+
+        PI = None
+        for k in [ 'P', 'Pn', 'pP', 'Pg', 'S', 'Sg', 'Sn' ]:
+            if k not in NS: continue
+            N,S,L,C,distance,azimuth,phasename,t = NS[k]
+            PI = self.__build_pick_dictionary(phasename, t, 0.0, PI)
+
+        lines.append((ta + dataWindowRange.min(),
+                      tb + dataWindowRange.max(),
+                      network.code,
+                      station.code,
+                      [z,n,e],
+                      SI,
+                      EI,
+                      PI)
+                     )
 
     def _build(self, lines, network, station, origin, magnitude, phaselist, phasename, targetSamplingRate, allowedGainCodes, timeRange):
         delta = geodetics.locations2degrees(station.latitude,
@@ -278,13 +328,21 @@ class BaseBuilder(object):
                    }
         return AttribDict(stationinfo)
 
-    def __build_pick_dictionary(self, phase, time, slowness):
-        pickinfo = {
-                    'phase': phase,
-                    'time': time,
-                    'slowness': slowness
-                    }
-        return AttribDict(pickinfo)
+    def __build_pick_dictionary(self, phase, time, slowness, main = None):
+        pickinfo = AttribDict({
+                    'phase'    : phase,
+                    'time'     : time,
+                    'slowness' : slowness,
+                    'others'   : None
+                    })
+        
+        if main is not None:
+            main['others'].append(pickinfo)
+            return main
+        
+        pickinfo['others'] = []
+        
+        return pickinfo
 
     def _organize_by_station(self, lines):
         request = {}

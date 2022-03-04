@@ -363,7 +363,7 @@ class Saver(object):
 
         # Fill the headers available for SAC file format
         self._fix_event_headers(stream, request)
-        stream = self._fix_station_headers(stream, request)
+        self._fix_station_headers(stream, request)
         n_head = len(stream)
 
 
@@ -521,6 +521,13 @@ class SacSaver(Saver):
             # Selection phase
             trace.stats.sac['a'] = phase.time - trace.stats.starttime
             trace.stats.sac['ka'] = phase.phase
+            
+            if phase.others is not None:
+                for which,var in [ ('S','t0'), ('Pg','t1'),  ('Pn','t2'), ('Sg','t3'),  ('Sn','t4') ]:
+                    for other in phase.others:
+                        if other.phase != which: continue
+                        trace.stats.sac[var] = other.time - trace.stats.starttime
+                        trace.stats.sac['k' + var] = other.phase
 
     def _fix_station_headers(self, stream, request):
         for trace in stream:

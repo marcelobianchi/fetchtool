@@ -144,9 +144,108 @@ class FDSNBuilder(BaseBuilder):
 
         return (z,n,e)
 
+    def __collect_stations(self, E, O):
+        
+        PA = []
+        
+        for A in O.arrivals:
+            if A.time_weight == 0: continue
+            P = [ P for P in E.picks if P.resource_id == A.pick_id ][0]
+            PA.append((A, P))
+        
+        sts = { }
+        bulk = []
+        
+        for A, P in PA:
+            N = P.waveform_id.network_code
+            S = P.waveform_id.station_code
+            L = P.waveform_id.location_code if P.waveform_id.location_code is not None else ""
+            C = P.waveform_id.channel_code[:2]
+            NS = f'{N}.{S}'
+            if NS not in sts:
+                sts[NS] = {}
+                bulk.append((N,S,L,C + "*", O.time - 3600, O.time + 7200))
+            
+            if A.phase in sts[NS]:
+                raise Exception(f"Duplicate {A.phase} pick for station {NS}")
+            
+            sts[NS][A.phase] = (N, S, L, C, A.distance, A.azimuth, A.phase, P.time)
+        
+        return sts, bulk
+
     '''
     Request Builder Methods
     '''
+
+    def eventidBased(self, eventid_or_list_of, dataWindowRange):
+        lines = []
+        
+        if isinstance(eventid_or_list_of, str):
+            eventid_or_list_of = [ eventid_or_list_of ]
+        
+        events = None
+        for eid in eventid_or_list_of:
+            try:
+                kwargsevent = {
+                    'eventid' : eid,
+                    'includearrivals' : True
+                }
+                
+                event = self.e_fdsn_client.get_events(**kwargsevent)
+                
+                if events is None:
+                    events = event
+                    continue
+                
+                events.extend(event)
+            except fdsn.header.FDSNException:
+                print(f"No events found for the given parameters {eid}.", file=sys.stderr)
+
+        if len(events) == 0:
+            return None
+        
+        print(f"Total of {len(events)} event found.", file=sys.stderr)
+        if self._plotevents:
+            events.plot()
+
+        # Event loop
+        for event in events:
+            try:
+                (origin, magnitude) = self._getOrigin(event)
+            except NextItem as e:
+                print("Skipping Origin: %s" % str(e), file=sys.stderr)
+                continue
+
+            try:
+                sts,bulk = self.__collect_stations(event, origin)
+                inventory = self.s_fdsn_client.get_stations_bulk(bulk, level = 'channel')
+
+                if inventory is None or len(inventory.networks) == 0:
+                    print("\n No station could be found.", file=sys.stderr)
+                    continue
+            except fdsn.header.FDSNException as e:
+                print("\n Failed to get information from event to fetch stations", file = sys.stderr)
+                continue
+
+            # Event loop
+            for network in inventory.networks:
+                for station in network.stations:
+                    try:
+                        print("  Working on station %s.%s " % (network.code, station.code), end="", file=sys.stderr)
+                        self._build_predefined(lines,
+                                   network, station, origin, magnitude,
+                                   sts[f'{network.code}.{station.code}'], 
+                                   dataWindowRange)
+                        print("OK!", file=sys.stderr)
+                    except NextItem as e:
+                        print(" -- Skipping: %s" % str(e), file=sys.stderr)
+
+        print("Working on origin: %s" % str(origin.time), file=sys.stderr)
+
+        request = self._organize_by_event(lines)
+
+        return request
+
 
     def stationBased(self, t0, t1, targetSamplingRate, allowedLocGainList, dataWindowRange, phasesOrPhaseGroupList,
                     networkStationList,
