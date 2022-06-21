@@ -675,7 +675,14 @@ class BaseBuilder(object):
         return request
 
     @staticmethod
-    def filter_netStationEvent(request, existing, useNetwork = False):
+    def filter_netStationEvent(request, existing, useNetwork = False, precision = 60.0):
+        def __check__(one, existing):
+            for node, oid in existing:
+                if node == one[0] and abs(oid - one[1]) < precision: return True
+            return False
+        
+        existing = [ (node, UTCDateTime.strptime(evid, "%y%m%d_%H%M%S")) for node, evid in existing ]
+        
         keys = request.keys()
         ndel = 0
         for evk in keys:
@@ -684,10 +691,10 @@ class BaseBuilder(object):
             lines = []
             for line in ev:
                 if useNetwork:
-                    t = ("%s.%s" % (line[2],line[3]), line[6].eventId[:-2])
+                    t = ("%s.%s" % (line[2],line[3]), UTCDateTime.strptime(line[6].eventId, "%y%m%d_%H%M%S"))
                 else:
-                    t = (line[3], line[6].eventId[:-2])
-                if t in existing:
+                    t = (line[3], UTCDateTime.strptime(line[6].eventId, "%y%m%d_%H%M%S"))
+                if __check__(t, existing):
                     ndel += 1
                     continue
                 lines.append(line)
