@@ -723,7 +723,11 @@ class BaseBuilder(object):
             print("%s from %s to %s" % (k, min(start[k]), max(end[k]) ))
         print("Min Overall Date is=%s" % min(min(start.values())))
         print("Max Overall Date is=%s" % max(max(start.values())))
-        
+    
+    @staticmethod
+    def reqlen(request):
+        return sum([ len(request[k]) for k in request if k != "STATUS" ])
+    
     @staticmethod
     def show_request(request, compact = True):
         def fv(v):
