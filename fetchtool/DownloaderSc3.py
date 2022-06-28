@@ -22,7 +22,7 @@ from __future__ import division, print_function
 
 from obspy.clients import fdsn
 from obspy import read as oREAD, Stream
-from Downloader import BaseFetcher
+from fetchtool.Downloader import BaseFetcher
 
 try:
     import StringIO

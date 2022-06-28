@@ -20,7 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from __future__ import print_function, division
 
-from SeismicHandlerStation import ShStation
+from fetchtool.SeismicHandlerStation import ShStation
 from obspy.core import AttribDict, Stream
 from obspy.io.sac import SACTrace
 import os, sys

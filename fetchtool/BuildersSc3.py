@@ -1,5 +1,5 @@
 from __future__ import division, print_function
-from BaseBuilder import BaseBuilder, NextItem, BadParameter
+from fetchtool.BaseBuilder import BaseBuilder, NextItem, BadParameter
 import sys,socket
 
 from seiscomp.arclink.manager import ArclinkManager
