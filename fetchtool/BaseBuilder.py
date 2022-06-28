@@ -776,7 +776,8 @@ class BaseBuilder(object):
         return
 
     @staticmethod
-    def map_request(request, add_lines = False, enhance = None, showonly = None):
+    def map_request(request, add_lines = False, enhance = None, 
+                    showonly = None, global_map = True, grids_on = True):
         import warnings
         from cartopy import crs, feature as cfeature
         from matplotlib import pyplot as plt
@@ -791,12 +792,14 @@ class BaseBuilder(object):
         fig = plt.figure(figsize=(11, 8.5))
         
         proj = crs.Robinson(central_longitude=0.0)
+        
         data_trans=crs.Geodetic()
         
         ax = plt.subplot(1, 1, 1, projection = proj)
         ax.coastlines()
+        
         ax.add_feature(cfeature.BORDERS, linewidth=0.5, edgecolor='black')
-
+        
         evn, stn, evs, sts = [ ], [ ], [ ], [ ]
         for k in request:
             if k == "STATUS": continue
@@ -836,6 +839,12 @@ class BaseBuilder(object):
                     ex, ey = evs[evn.index(item)]
                     ax.plot(ex, ey, '*', markersize = 16, color = 'k', transform = data_trans)
         
+        if global_map:
+            ax.set_global()
+        
+        if grids_on:
+            ax.gridlines(draw_labels=True, dms=True, x_inline=False, y_inline=False)
+
         plt.title('Request Container')
         plt.show()
 
