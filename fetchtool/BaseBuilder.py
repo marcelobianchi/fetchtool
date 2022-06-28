@@ -777,20 +777,25 @@ class BaseBuilder(object):
 
     @staticmethod
     def map_request(request, add_lines = False, enhance = None, showonly = None):
+        import warnings
+        from cartopy import crs, feature as cfeature
         from matplotlib import pyplot as plt
-        from mpl_toolkits.basemap import Basemap
+        
+        warnings.filterwarnings('ignore')
 
         keys = [ "ALL" ]
         for k in request:
             if k == "STATUS": continue
             keys.append(k)
 
-        m = Basemap(projection='robin', lon_0=0, resolution='c')
-
-        m.fillcontinents(color='gray',lake_color='white')
-        m.drawmapboundary(fill_color='white')
-        m.drawmeridians(range(0, 360, 30))
-        m.drawparallels(range(-90, 90, 30))
+        fig = plt.figure(figsize=(11, 8.5))
+        
+        proj = crs.Robinson(central_longitude=0.0)
+        data_trans=crs.Geodetic()
+        
+        ax = plt.subplot(1, 1, 1, projection = proj)
+        ax.coastlines()
+        ax.add_feature(cfeature.BORDERS, linewidth=0.5, edgecolor='black')
 
         evn, stn, evs, sts = [ ], [ ], [ ], [ ]
         for k in request:
@@ -805,8 +810,8 @@ class BaseBuilder(object):
                 elat = float(ev['latitude'])
                 slon = float(st['longitude'])
                 slat = float(st['latitude'])
-                ex, ey = m(elon, elat)
-                sx, sy = m(slon, slat)
+                ex, ey = elon, elat #m(elon, elat)
+                sx, sy = slon, slat #m(slon, slat)
                 if eid not in evn:
                     evn.append(eid)
                     evs.append((ex,ey))
@@ -814,22 +819,22 @@ class BaseBuilder(object):
                     stn.append(sid)
                     sts.append((sx,sy))
                 if add_lines:
-                    m.plot([ex, sx], [ey, sy], linewidth=1, color='k')
-
+                    ax.plot([ex, sx], [ey, sy], linewidth=1, color='k', transform=data_trans)
+        
         for ex,ey in evs:
-            m.plot(ex, ey, 'b*', markersize = 16, color = 'g')
+            ax.plot(ex, ey, 'b*', markersize = 16, color = 'g', transform = data_trans)
         
         for sx,sy in sts:
-            m.plot(sx, sy, 'b^', markersize = 16, color = 'r')
+            ax.plot(sx, sy, 'b^', markersize = 16, color = 'r', transform = data_trans)
         
         if enhance is not None:
             for item in [ enhance ] if isinstance(enhance, str) else enhance:
                 if item in stn:
                     ex, ey = sts[stn.index(item)]
-                    m.plot(ex, ey, '^', markersize = 16, color = 'k')
+                    ax.plot(ex, ey, '^', markersize = 16, color = 'k', transform = data_trans)
                 if item in evn:
                     ex, ey = evs[evn.index(item)]
-                    m.plot(ex, ey, '*', markersize = 16, color = 'k')
+                    ax.plot(ex, ey, '*', markersize = 16, color = 'k', transform = data_trans)
         
         plt.title('Request Container')
         plt.show()
