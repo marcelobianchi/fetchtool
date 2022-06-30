@@ -476,8 +476,12 @@ class SacSaver(Saver):
     def __init__(self, debug = False):
         Saver.__init__(self, debug)
 
-    def _getfilename(self,trace):
-        return "%s_%s.sac" % (trace.id, trace._f_evid)
+    def _getfilename(self, trace):
+        try:
+            filename = "%s.%s.%s.%s.sac" % (trace.stats.network, trace.stats.station, trace.stats.sac['kevnm'], trace.stats.channel)
+        except:
+            filename = "%s_%s.sac" % (trace.id, trace._f_evid)
+        return filename
 
     def _extract(self, folder, key, request, stream):
         nw = 0

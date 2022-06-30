@@ -246,7 +246,6 @@ class FDSNBuilder(BaseBuilder):
 
         return request
 
-
     def stationBased(self, t0, t1, targetSamplingRate, allowedLocGainList, dataWindowRange, phasesOrPhaseGroupList,
                     networkStationList,
                     stationRestrictionArea,
