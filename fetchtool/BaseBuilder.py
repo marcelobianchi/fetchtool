@@ -642,6 +642,9 @@ class BaseBuilder(object):
 
     @staticmethod
     def filter_timewindow(request, start = None, end = None):
+        '''
+        Filter out request lines not matching with this datetime range
+        '''
         if start is None and end is None: raise BadParameter("Need start or end parameters")
         for evk in request:
             if evk == 'STATUS': continue
@@ -663,6 +666,9 @@ class BaseBuilder(object):
 
     @staticmethod
     def filter_channels(request, allowedChannels = "Z"):
+        '''
+        Filter channels to be requested based on the option given.
+        '''
         for evk in request:
             if evk == "STATUS" : continue
             ev = request[evk]
@@ -676,6 +682,16 @@ class BaseBuilder(object):
 
     @staticmethod
     def filter_netStationEvent(request, existing, useNetwork = False, precision = 60.0):
+        '''
+        Filter out request lines that are already listed in the existing list.
+        
+        existing is a list of (Network.Station, EventId ) tuples. Network can 
+        be ommited if useNetwork = False.
+        
+        eventIds encodes event origin times, when comparing a tolerance of 
+        precision is assumed due to changes in event location between built
+        requests.
+        '''
         def __check__(one, existing):
             for node, oid in existing:
                 if node == one[0] and abs(oid - one[1]) < precision: return True
