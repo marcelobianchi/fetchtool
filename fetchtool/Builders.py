@@ -37,6 +37,68 @@ from obspy.core import AttribDict
 from obspy import geodetics
 
 '''
+Support Methods - should not be used but can!
+'''
+
+def __do_list_networks__(_CL, t0, t1):
+        mda = _CL.get_stations(UTCDateTime(t0), UTCDateTime(t1), level = 'net')
+        
+        for N in mda:
+            print("%-02s" % N.code, " - ", N.description)
+        
+        return mda
+
+
+def __do_list_stations__(_CL, t0, t1, net = '*', do_map = False, global_map = False, grids_on = False):
+        plot_data = { }
+        
+        mda = _CL.get_stations(UTCDateTime(t0), UTCDateTime(t1), net = net, level = 'sta')
+        
+        for N in mda:
+            K = "%s_%s" % (N.code, N.start_date.strftime("%Y"))
+            plot_data[K] = { 'code' : [], 'lat' : [], 'lon' : []}
+            for S in N.stations:
+                desc = S.description
+                plot_data[K]['lat'].append(S.latitude)
+                plot_data[K]['lon'].append(S.longitude)
+                plot_data[K]['code'].append(S.code)
+                if desc is None:
+                    desc = S.site.name if S.site.region is None else "%s (%s)" % (S.site.name, S.site.region)
+                print("%02s.%-05s" % (N.code, S.code), " - ", desc)
+            print("")
+
+        if do_map:
+            import warnings
+            from cartopy import crs, feature as cfeature
+            from matplotlib import pyplot as plt
+            warnings.filterwarnings('ignore')
+            
+            fig = plt.figure(figsize=(11, 8.5))
+            
+            proj = crs.Robinson(central_longitude=0.0)
+            data_trans=crs.Geodetic()
+            
+            ax = plt.subplot(1, 1, 1, projection = proj)
+            ax.coastlines()
+            ax.add_feature(cfeature.BORDERS, linewidth=0.5, edgecolor='black')
+            
+            for k in plot_data:
+                ax.plot(plot_data[k]['lon'], plot_data[k]['lat'], "^", label = k, transform = data_trans)
+            
+            if global_map:
+                ax.set_global()
+            
+            if grids_on:
+                ax.gridlines(draw_labels=True, dms=True, x_inline=False, y_inline=False)
+
+            ax.legend()
+            plt.title('Request Container')
+            plt.show()
+
+        return mda
+
+
+'''
   Builders Definition
 '''
 class FDSNBuilder(BaseBuilder):
@@ -183,13 +245,7 @@ class FDSNBuilder(BaseBuilder):
         Returns: 
             Metadata object.
         '''
-        
-        mda = self.s_fdsn_client.get_stations(UTCDateTime(t0), UTCDateTime(t1), level = 'net')
-        
-        for N in mda:
-            print("%-02s" % N.code, " - ", N.description)
-        
-        return mda
+        return __do_list_networks__(self.s_fdsn_client, t0, t1)
 
     def list_stations(self, t0, t1, net = '*', do_map = False, global_map = False, grids_on = False):
         '''
@@ -201,58 +257,11 @@ class FDSNBuilder(BaseBuilder):
             Metadata object.
             Optionaly plot the station locations.
         '''
-        plot_data = { }
-        
-        mda = self.s_fdsn_client.get_stations(UTCDateTime(t0), UTCDateTime(t1), net = net, level = 'sta')
-        
-        for N in mda:
-            K = "%s_%s" % (N.code, N.start_date.strftime("%Y"))
-            plot_data[K] = { 'code' : [], 'lat' : [], 'lon' : []}
-            for S in N.stations:
-                desc = S.description
-                plot_data[K]['lat'].append(S.latitude)
-                plot_data[K]['lon'].append(S.longitude)
-                plot_data[K]['code'].append(S.code)
-                if desc is None:
-                    desc = S.site.name if S.site.region is None else "%s (%s)" % (S.site.name, S.site.region)
-                print("%-02s.%-05s" % (N.code, S.code), " - ", desc)
-            print("")
-        
-        if do_map:
-            import warnings
-            from cartopy import crs, feature as cfeature
-            from matplotlib import pyplot as plt
-            warnings.filterwarnings('ignore')
-            
-            fig = plt.figure(figsize=(11, 8.5))
-            
-            proj = crs.Robinson(central_longitude=0.0)
-            data_trans=crs.Geodetic()
-            
-            ax = plt.subplot(1, 1, 1, projection = proj)
-            ax.coastlines()
-            ax.add_feature(cfeature.BORDERS, linewidth=0.5, edgecolor='black')
-            
-            for k in plot_data:
-                ax.plot(plot_data[k]['lon'], plot_data[k]['lat'], "^", label = k, transform = data_trans)
-            
-            if global_map:
-                ax.set_global()
-            
-            if grids_on:
-                ax.gridlines(draw_labels=True, dms=True, x_inline=False, y_inline=False)
-
-            ax.legend()
-            plt.title('Request Container')
-            plt.show()
-
-        return mda
-
+        return __do_list_stations__(self.s_fdsn_client, t0, t1, net, do_map, global_map, grids_on)
 
     '''
     Request Builder Methods
     '''
-
     def eventidBased(self, eventid_or_list_of, dataWindowRange):
         lines = []
         
@@ -552,11 +561,35 @@ class CSVBuilder(BaseBuilder):
         return
 
     '''
+    Quick MDA query methods
+    '''
+    def list_networks(self, t0, t1):
+        '''
+        Perform a simple query to find networks in the station server
+        
+        Returns: 
+            Metadata object.
+        '''
+        return __do_list_networks__(self._client, t0, t1)
+
+    def list_stations(self, t0, t1, net = '*', do_map = False, global_map = False, grids_on = False):
+        '''
+        Perform a simple query to find stations in the station server. You can
+        supply many different networks using wildcards or using the "," as item
+        separators.
+        
+        Returns: 
+            Metadata object.
+            Optionaly plot the station locations.
+        '''
+        return __do_list_stations__(self._client, t0, t1, net, do_map, global_map, grids_on)
+
+    '''
     CSV specific Methods
     '''
     def _getChannelList(self, station, t0, targetsps, instcode):
         return FDSNBuilder._getChannelList(station, t0, targetsps, instcode)
-    
+
     def __loadcsv(self, t0, t1, evr, mr, dr, station = None, distanceRange = None):
         event     = AttribDict()
         magnitude = AttribDict()
@@ -601,7 +634,7 @@ class CSVBuilder(BaseBuilder):
                 Yield Data
                 '''
                 yield (event, magnitude)
-    
+
     def __loadstFDSN(self, net, sta, t0, t1, stationRestrictionArea, origin = None, distanceRange = None):
         if origin is not None:
             t0 = origin.time - 86400
@@ -689,7 +722,7 @@ class CSVBuilder(BaseBuilder):
         request = self._organize_by_event(lines)
 
         return request
-    
+
     def stationBased(self, t0, t1, targetSamplingRate, allowedLocGainList, dataWindowRange, phasesOrPhaseGroupList,
                     networkStationList,
                     stationRestrictionArea,
