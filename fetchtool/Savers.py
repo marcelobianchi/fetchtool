@@ -23,6 +23,7 @@ from __future__ import print_function, division
 from fetchtool.SeismicHandlerStation import ShStation
 from obspy.core import AttribDict, Stream
 from obspy.io.sac import SACTrace
+from obspy.geodetics import gps2dist_azimuth, kilometers2degrees
 import os, sys
 import numpy as np 
 
@@ -511,6 +512,7 @@ class SacSaver(Saver):
 
     def _fix_event_headers(self, stream, request):
         for trace in stream:
+            stp = request[trace._f_linecount][5]
             evp = request[trace._f_linecount][6]
             phase = request[trace._f_linecount][7]
             if not hasattr(trace.stats,"sac"):
@@ -528,6 +530,13 @@ class SacSaver(Saver):
                     trace.stats.sac['mag'] = evp.magnitude
             except KeyError as e:
                 print("No magnitude value (%s)." % e, file=sys.stderr)
+
+            # Distance
+            distance, baz, az = gps2dist_azimuth(stp.latitude, stp.longitude, evp.latitude, evp.longitude)[0] / 1000.0
+            trace.stats.sac['distance'] = distance
+            trace.stats.sac['gcarc'] = kilometers2degrees(distance)
+            trace.stats.sac['baz'] = baz
+            trace.stats.sac['az'] = az
 
             # Selection phase
             trace.stats.sac['a'] = phase.time - trace.stats.starttime
