@@ -533,7 +533,7 @@ class SacSaver(Saver):
 
             # Distance
             distance, baz, az = gps2dist_azimuth(stp.latitude, stp.longitude, evp.latitude, evp.longitude)
-            trace.stats.sac['distance'] = distance / 1000.0
+            trace.stats.sac['dist'] = distance / 1000.0
             trace.stats.sac['gcarc'] = kilometers2degrees(distance / 1000.0)
             trace.stats.sac['baz'] = baz
             trace.stats.sac['az'] = az
