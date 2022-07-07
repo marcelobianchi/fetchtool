@@ -136,6 +136,10 @@ class AreaRange(object):
     def WORLD():
         return AreaRange(-180., 180., -90., 90)
 
+    @staticmethod
+    def BRAZIL():
+        return AreaRange(-75., -30., -35., 8.)
+
     def __str__(self):
         return f'AreaRange from {self.xmin()} to {self.xmax()} and {self.ymin()} to {self.ymax()}'
 
