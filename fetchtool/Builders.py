@@ -266,7 +266,10 @@ class FDSNBuilder(BaseBuilder):
         lines = []
         
         if isinstance(eventid_or_list_of, str):
-            eventid_or_list_of = [ eventid_or_list_of ]
+            if "," in eventid_or_list_of:
+                eventid_or_list_of = eventid_or_list_of.split(",")
+            else:
+                eventid_or_list_of = [ eventid_or_list_of ]
         
         events = None
         for eid in eventid_or_list_of:
@@ -301,6 +304,8 @@ class FDSNBuilder(BaseBuilder):
                 print("Skipping Origin: %s" % str(e), file=sys.stderr)
                 continue
 
+            print("Working on origin: %s" % str(origin.time), file=sys.stderr)
+
             try:
                 sts,bulk = self.__collect_stations(event, origin)
                 inventory = self.s_fdsn_client.get_stations_bulk(bulk, level = 'channel')
@@ -313,19 +318,24 @@ class FDSNBuilder(BaseBuilder):
                 continue
 
             # Event loop
+            used = []
             for network in inventory.networks:
                 for station in network.stations:
                     try:
-                        print("  Working on station %s.%s " % (network.code, station.code), end="", file=sys.stderr)
                         self._build_predefined(lines,
                                    network, station, origin, magnitude,
                                    sts[f'{network.code}.{station.code}'], 
                                    dataWindowRange)
-                        print("OK!", file=sys.stderr)
+                        print("  ++ Station %2s.%-5s was added to request." % (network.code, station.code), file=sys.stderr)
+                        used.append("%s.%s" % (network.code, station.code))
                     except NextItem as e:
                         print(" -- Skipping: %s" % str(e), file=sys.stderr)
+                    except Exception:
+                        print(" -- Skipping: %2s.%-5s, general error occurred." % (network.code, station.code), file=sys.stderr)
 
-        print("Working on origin: %s" % str(origin.time), file=sys.stderr)
+            for ns in sts:
+                if ns not in used:
+                    print("  -- Station %-8s was not found the FDSN, skipping." % ns, file=sys.stderr)
 
         request = self._organize_by_event(lines)
 
