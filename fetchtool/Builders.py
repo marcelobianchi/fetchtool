@@ -682,11 +682,9 @@ class FDSNBuilder(BaseBuilder):
 class CSVBuilder(BaseBuilder):
     '''Build a request from a Text File for Event and a FDSN server for stations.
     
-    CSV input file format is:
-
-    ```
+    CSV input file format is::
+    
     <Origin Time> <Longitude> <Latitude> <Depth> <Magnitude> [...]
-    ```
     
     Separators and also be [ ], [,] or even [;].
     
