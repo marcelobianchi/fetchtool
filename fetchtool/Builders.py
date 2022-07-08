@@ -680,13 +680,24 @@ class FDSNBuilder(BaseBuilder):
 
 
 class CSVBuilder(BaseBuilder):
-    '''
-    Build a request from a Text File for Event and a FDSN/ArcLink server for stations.
-    File format is:
+    '''Build a request from a Text File for Event and a FDSN server for stations.
     
+    CSV input file format is:
+
+    ```
     <Origin Time> <Longitude> <Latitude> <Depth> <Magnitude> [...]
+    ```
     
     Separators and also be [ ], [,] or even [;].
+    
+    Parameters
+    ----------
+    time_lon_lat_dep_in_km_mag_file : str
+        The filename of the file to read
+    fdsn_station_url : str
+        The URL for the station FDSN server
+    debug : bool, default False
+        Display debuging messages
     '''
 
     def __init__(self, time_lon_lat_dep_in_km_mag_file, fdsn_station_url, debug = False):
@@ -814,7 +825,38 @@ class CSVBuilder(BaseBuilder):
                    stationRestrictionArea = None,
                    distanceRange = None
                    ):
+        '''Perform the search of events and find stations based on the events
         
+        This method use the given time, region depth and magnitude constrains to search for events in the given 
+        FDSN server and for each event search for stations given the other parameters (networkStationList, 
+        stationRestrictionArea and distanceRange) to build a request. It will search for suitable data channels
+        inside each station using the targetSamplingRate and  allowedLocGainList.
+        
+        Final time window for each request line will be based on the theoretical arrival time for phase 
+        phasesOrPhaseGroupList (use 'ttp' for P-waves or read the docs on obspy taup class) using the dataWindowRange
+        parameter interval.
+        
+        Parameters
+        ----------
+        t0 : str or UTCDateTime
+        t1 : str or UTCDateTime
+        targetSamplingRate : int
+        allowedLocGainList : list
+        dataWindowRange : Range
+        phasesOrPhaseGroupList : str 
+        eventRestrictionArea : AreaRange
+        magnitudeRange : Range
+        depthRange : Range
+
+        networkStationList : list, optional
+        stationRestrictionArea : AreaRange, optional
+        distanceRange : Range, optional
+        
+        Return
+        ------
+        request
+            A request object (dict of list of tuples)
+        '''
         (phasename, phaselist) = self._resolve_phasenames(phasesOrPhaseGroupList)
         print("Searching using: %s %s" % (phasename, phaselist), file=sys.stderr)
 
@@ -868,6 +910,37 @@ class CSVBuilder(BaseBuilder):
                     magnitudeRange = None,
                     depthRange = None,
                     distanceRange = None):
+        '''Perform the search of stations and find events based on the stations
+        
+        This method use the given time, codes and region to constrain the search for stations in the given 
+        FDSN server and for each station search for events given the other parameters (eventRestrictionArea, 
+        magnitudeRange, depthRange and distanceRange) to build a request. It will search for suitable data channels
+        inside each station using the targetSamplingRate and  allowedLocGainList.
+        
+        Final time window for each request line will be based on the theoretical arrival time for phase 
+        phasesOrPhaseGroupList (use 'ttp' for P-waves or read the docs on obspy taup class) using the dataWindowRange
+        parameter interval.
+        
+        Parameters
+        ----------
+        t0 : str or UTCDateTime
+        t1 : str or UTCDateTime
+        targetSamplingRate : int
+        allowedLocGainList : list
+        dataWindowRange : Range
+        phasesOrPhaseGroupList : str 
+        networkStationList : list
+        stationRestrictionArea : AreaRange
+        eventRestrictionArea : AreaRange, optional
+        magnitudeRange : Range, optional
+        depthRange : Range, optional
+        distanceRange : Range, optional
+        
+        Return
+        ------
+        request
+            A request object (dict of list of tuples)
+        '''
 
         (t0, t1, targetSamplingRate, allowedLocGainList, dataWindowRange, phasesOrPhaseGroupList,
          networkStationList, stationRestrictionArea,

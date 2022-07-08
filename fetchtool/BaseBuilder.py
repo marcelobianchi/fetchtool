@@ -55,9 +55,13 @@ DAY    = 24 * HOUR
 ''' One day constant in seconds'''
 
 class Status(object):
+    '''A not so usefull status representation of the request.
+    '''
     def __init__(self):
         self.level = STATUS.unset
+        '''The current status indication'''
         self.comment = None
+        '''Any added comment to the status'''
 
     def __iter__(self):
         return self
@@ -66,9 +70,11 @@ class Status(object):
         return 0
 
     def next(self):
+        '''Used for iteration'''
         raise StopIteration
 
     def show(self):
+        '''Print a status message'''
         print("Status Level: ",self.level, "[",self.comment,"]")
 
 
@@ -634,6 +640,13 @@ class BaseBuilder(object):
     ''' Public exported methods '''
 
     def setShowEvents(self, true_false):
+        '''Show events obtained from server before continuing to build the request.
+        
+        Parameter
+        ---------
+        true_false : bool
+            A True or False value that will activate or disable the Show Event feature.
+        '''
         self._plotevents = bool(true_false)
 
     ''' Static methods have underscore '''
@@ -672,6 +685,31 @@ class BaseBuilder(object):
 
     @staticmethod
     def stev_list(request, fields= ["#", "stationId", "slongitude", "slatitude", "selevation", "eventId", "etime", "elongitude", "elatitude", "edepth", "emagnitude"], separator = "\t", formats = { }, destination = sys.stdout):
+        '''Generate a printout list of events and stations in the request
+        
+        This method can be used to generate a print out list of the stations and events in the request.
+        Its output can be customized using the fields parameters. Aditionaly it also
+        returns a list with the output that can be consumed into your program.
+        
+        Parameters
+        ----------
+        request : request
+            The input request
+        fields: list
+            A list of fields to be reported and returned.
+        separator : str, default "\t"
+            A character that will be used as field separator (like "," to make a csv)
+        formats : dict, default {}
+            A dictionary of formats to change each field number formating.
+        destination : file, default sys.stdout
+            An open file for destination of the print out.
+        
+        Return
+        ------
+        list
+            A data list including the selected fields.
+        '''
+        
         validfields = ["#", "stationId", "slongitude", "slatitude", "selevation", "eventId", "etime", "elongitude", "elatitude", "edepth", "emagnitude"]
         formatrule     = {
            "#": "%04d",
@@ -711,6 +749,30 @@ class BaseBuilder(object):
 
     @staticmethod
     def station_list(request, fields = ["#", "stationId", "longitude", "latitude", "elevation"], separator = "\t", formats = { }, destination = sys.stdout):
+        '''Generate a printout list of individual stations in the request
+        
+        This method can be used to generate a print out list of the stations in the request.
+        Its output can be customized using the fields parameters. Aditionaly it also
+        returns a list with the output that can be consumed into your program.
+        
+        Parameters
+        ----------
+        request : request
+            The input request
+        fields: list
+            A list of fields to be reported and returned.
+        separator : str, default "\t"
+            A character that will be used as field separator (like "," to make a csv)
+        formats : dict, default {}
+            A dictionary of formats to change each field number formating.
+        destination : file, default sys.stdout
+            An open file for destination of the print out.
+        
+        Return
+        ------
+        list
+            A data list including the selected fields.
+        '''
         validfields = ["#", "stationId", "longitude", "latitude", "elevation"]
         formatrule     = {
            "#": "%04d",
@@ -733,6 +795,30 @@ class BaseBuilder(object):
 
     @staticmethod
     def event_list(request, fields = ["#", "eventId", "time", "longitude", "latitude", "depth", "magnitude"], separator = "\t", formats = { }, destination = sys.stdout):
+        '''Generate a printout list of individual events in the request
+        
+        This method can be used to generate a print out list of the events in the request.
+        Its output can be customized using the fields parameters. Aditionaly it also
+        returns a list with the output that can be consumed into your program.
+        
+        Parameters
+        ----------
+        request : request
+            The input request
+        fields: list
+            A list of fields to be reported and returned.
+        separator : str, default "\t"
+            A character that will be used as field separator (like "," to make a csv)
+        formats : dict, default {}
+            A dictionary of formats to change each field number formating.
+        destination : file, default sys.stdout
+            An open file for destination of the print out.
+        
+        Return
+        ------
+        list
+            A data list including the selected fields.
+        '''
         validfields = ["#", "eventId", "time", "longitude", "latitude", "depth", "magnitude"]
         formatrule     = {
            "#": "%04d",
@@ -951,6 +1037,14 @@ class BaseBuilder(object):
 
     @staticmethod
     def request_stats(request):
+        '''Show some stats from the request
+        
+        Parameter
+        ---------
+        request : request
+            The input request
+        
+        '''
         ng = 0
         nl = { }
         
@@ -1044,6 +1138,26 @@ class BaseBuilder(object):
     @staticmethod
     def map_request(request, add_lines = False, enhance = None, 
                     showonly = None, global_map = True, grids_on = True):
+        '''Make a map using cartopy representing the request.
+        
+        It plots all individual stations and events in the request. Map can be customized from the input parameters.
+        
+        Parameter
+        ---------
+        request : request
+            The input request to plot
+        add_lines : bool, default False
+            Show a line connecting events and stations on the request
+        enhance : str, default None
+            A list of stations ids and/or events ids to be enhanced on the map
+        showonly : str, default None
+            One eventid or one stationid to be shown.
+        global_map : bool, default True
+            Show a global map (True) or a map around stations and events (False)
+        grids_on : bool, default True
+            Enable or disable the display of grids on the map
+        
+        '''
         import warnings
         from cartopy import crs, feature as cfeature
         from matplotlib import pyplot as plt
