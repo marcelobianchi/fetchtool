@@ -32,16 +32,49 @@ class BaseFetcher(object):
     pass
 
 class FDSNFetcher(BaseFetcher):
+    '''A fetcher based on FDSN server
+    
+    Parameters
+    ----------
+    hostorclient : str, default "IRIS"
+        The URL of the host to connect to. See the warning above if you need to supply a user and password.
+    allinone : bool, default False
+        Indicate that the whole request should be request as one request.
+    merge, bool, default False
+        Indicate that before returning the data to the Downloader the fetcher should merge the received traces.
+    
+    Warning
+    -------
+        If you want to obtain restricted data you will need to indicate a user and a password on the hostorclient.
+        Another option is that you instantiate yourself an obspyclient and supply it to the FDSNFetcher. The current
+        synthax to indicate the **username** and **password** is using
+        
+        hostorclient = "http://YOUR_FDSN_HOST;YOUR_USER;YOUR_PASSWORD"
+        
+    '''
+
     def __init__(self, hostorclient = "IRIS", allinone = False, merge = False):
         if isinstance(hostorclient, fdsn.Client):
+            print("Using supplied client at: {}".format(hostorclient.base_url))
             self._fc = hostorclient
-            self._host = hostorclient.base_url
         elif isinstance(hostorclient, str):
-            self._host = hostorclient
-            self._fc = fdsn.Client(self._host)
+            host = hostorclient
+            user = None
+            password = None
+            
+            if ";" in hostorclient:
+                host,user,password = hostorclient.split(";", 2)
+            
+            self._fc = fdsn.Client(host, user = user, password = password)
         else:
             raise Exception("Invalid parameter hostorclient, type missmatch.")
 
+        if self._fc.user is None:
+            print("Connected to {} without authentication.".format(self._fc.base_url))
+        else:
+            print("Connected to {} authenticated as user={}".format(self._fc.base_url, self._fc.user))
+        
+        
         if allinone:
             print("Since all in one is given will BULK all requests into one", file=sys.stderr)
 
@@ -49,6 +82,8 @@ class FDSNFetcher(BaseFetcher):
         self._merge = merge
 
     def work(self, key, items):
+        '''This is the main method of the FDSNFetcher. This is used by the Downloaded
+        '''
         stream = Stream()
         
         allbulk = []
