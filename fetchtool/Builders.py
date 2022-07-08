@@ -44,7 +44,9 @@ def __do_list_networks__(_CL, t0, t1):
         mda = _CL.get_stations(UTCDateTime(t0), UTCDateTime(t1), level = 'net')
         
         for N in mda:
-            print("%-02s" % N.code, " - ", N.description)
+            print("%-02s" % N.code,
+                  "[%10s - %10s]" % (N.start_date.strftime("%Y-%m-%d"),N.end_date.strftime("%Y-%m-%d") if N.end_date is not None else "    --    "),
+                  " - ", N.description)
         
         return mda
 
@@ -64,7 +66,9 @@ def __do_list_stations__(_CL, t0, t1, net = '*', do_map = False, global_map = Fa
                 plot_data[K]['code'].append(S.code)
                 if desc is None:
                     desc = S.site.name if S.site.region is None else "%s (%s)" % (S.site.name, S.site.region)
-                print("%02s.%-05s" % (N.code, S.code), " - ", desc)
+                print("%02s.%-05s" % (N.code, S.code),
+                      "[%10s - %10s]" % (S.start_date.strftime("%Y-%m-%d"),S.end_date.strftime("%Y-%m-%d") if S.end_date is not None else "    --    "),
+                      " - ", desc)
             print("")
 
         if do_map:
