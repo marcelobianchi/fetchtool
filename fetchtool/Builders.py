@@ -1,4 +1,5 @@
-'''
+'''Builders for the fetchtool package.
+
 FetchTool Interactive, Mutli-module seismological mass downloader package.
 Copyright (C) 2015  Marcelo Bianchi <m.bianchi@iag.usp.br>
 
@@ -106,11 +107,28 @@ def __do_list_stations__(_CL, t0, t1, net = '*', do_map = False, global_map = Fa
   Builders Definition
 '''
 class FDSNBuilder(BaseBuilder):
-    '''Build a request using a FDSN server for events and another for stations metadata'''
+    """Build a request using a FDSN server for Event and another for Station metadata
+    
+    This class implements a request builder module that uses FDSN calls to servers to fetch information and build a request.
+    
+    Parameters
+    ----------
+    fdsn_event_url : str
+        The URL for the Event FDSN server.
+    fdsn_station_url : str
+        The URL for the Station FDSN server.
+    
+    """
     def __init__(self, fdsn_event_url, fdsn_station_url = None):
         BaseBuilder.__init__(self)
 
         d = False
+
+        self.e_fdsn_client = None
+        '''This is the saved instance of the FDSN station client'''
+        
+        self.s_fdsn_client = None
+        '''This is the saved instance of the FDSN event client'''
 
         if isinstance(fdsn_event_url, str):
             self.e_fdsn_client = fdsn.Client(fdsn_event_url, debug = d)
@@ -243,23 +261,44 @@ class FDSNBuilder(BaseBuilder):
     Quick MDA query methods
     '''
     def list_networks(self, t0, t1):
-        '''
-        Perform a simple query to find networks in the station server
+        '''Perform a simple query to find networks in the station server
         
-        Returns: 
-            Metadata object.
+        Parameters
+        -----------
+        t0 : str or UTCDateTime
+            The starttime for the search
+        t1 : str or UTCDateTime
+            The endtime for the search
+        
+        Return
+        ------
+        inventory
+            The metadata inventory in obspy format with level = network.
         '''
         return __do_list_networks__(self.s_fdsn_client, t0, t1)
 
     def list_stations(self, t0, t1, net = '*', do_map = False, global_map = False, grids_on = False):
-        '''
-        Perform a simple query to find stations in the station server. You can
-        supply many different networks using wildcards or using the "," as item
-        separators.
+        '''Perform a simple query to find stations from given network in the station server
         
-        Returns: 
-            Metadata object.
-            Optionaly plot the station locations.
+        Parameters
+        -----------
+        t0 : str or UTCDateTime
+            The starttime for the search
+        t1 : str or UTCDateTime
+            The endtime for the search
+        net : str, default "*"
+            A network code pattern to restrict the search
+        do_map : bool, default False
+            Generate a map of stations
+        global_map : bool, default False
+            Restrict map to station region
+        grids_on : bool, default False
+            Add a grid to the map
+        
+        Return
+        ------
+        inventory
+            The metadata inventory in obspy format with level = network.
         '''
         return __do_list_stations__(self.s_fdsn_client, t0, t1, net, do_map, global_map, grids_on)
 
@@ -267,6 +306,30 @@ class FDSNBuilder(BaseBuilder):
     Request Builder Methods
     '''
     def eventidBased(self, eventid_or_list_of, dataWindowRange):
+        '''Use a specific eventid or a list of eventids to build a request
+        
+        This method will obtain from the event FDSN server the information for the given event ids 
+        and using the return information will build the request. The request will only contain stations
+        that are used to locate the event.
+        
+        Phased marks will be saved to be added to the final SAC file header. The only additional parameter
+        is the dataWindowRange that will be used to determine de request time window. For each channel, on 
+        each station a time window will be determined using the first Phase plus the start of the
+        dataWindowRange and the last Phase plus the end of the dataWindowRange.
+        
+        Event picked stations that are not on the station FDSN server are also ignored from the request.
+        
+        Parameters
+        ----------
+        eventid_or_list_of : str or list
+        dataWindowRange : Range
+        
+        Return
+        ------
+        request
+            A request object (dict of list of tuples)
+        
+        '''
         lines = []
         
         if isinstance(eventid_or_list_of, str):
@@ -353,8 +416,37 @@ class FDSNBuilder(BaseBuilder):
                     magnitudeRange = None,
                     depthRange = None,
                     distanceRange = None):
-        '''Search initially by stations, later, find events related to the stations time and distance specified.'''
-
+        '''Perform the search of stations and find events based on the stations
+        
+        This method use the given time, codes and region to constrain the search for stations in the given 
+        FDSN server and for each station search for events given the other parameters (eventRestrictionArea, 
+        magnitudeRange, depthRange and distanceRange) to build a request. It will search for suitable data channels
+        inside each station using the targetSamplingRate and  allowedLocGainList.
+        
+        Final time window for each request line will be based on the theoretical arrival time for phase 
+        phasesOrPhaseGroupList (use 'ttp' for P-waves or read the docs on obspy taup class) using the dataWindowRange
+        parameter interval.
+        
+        Parameters
+        ----------
+        t0 : str or UTCDateTime
+        t1 : str or UTCDateTime
+        targetSamplingRate : int
+        allowedLocGainList : list
+        dataWindowRange : Range
+        phasesOrPhaseGroupList : str 
+        networkStationList : list
+        stationRestrictionArea : AreaRange
+        eventRestrictionArea : AreaRange, optional
+        magnitudeRange : Range, optional
+        depthRange : Range, optional
+        distanceRange : Range, optional
+        
+        Return
+        ------
+        request
+            A request object (dict of list of tuples)
+        '''
         (t0, t1, targetSamplingRate, allowedLocGainList, dataWindowRange, phasesOrPhaseGroupList,
          networkStationList, stationRestrictionArea,
          eventRestrictionArea, magnitudeRange, depthRange,
@@ -472,7 +564,38 @@ class FDSNBuilder(BaseBuilder):
                    stationRestrictionArea = None,
                    distanceRange = None
                    ):
-        '''Search initially by events, later, find stations related to the events time and distance specified.'''
+        '''Perform the search of events and find stations based on the events
+        
+        This method use the given time, region depth and magnitude constrains to search for events in the given 
+        FDSN server and for each event search for stations given the other parameters (networkStationList, 
+        stationRestrictionArea and distanceRange) to build a request. It will search for suitable data channels
+        inside each station using the targetSamplingRate and  allowedLocGainList.
+        
+        Final time window for each request line will be based on the theoretical arrival time for phase 
+        phasesOrPhaseGroupList (use 'ttp' for P-waves or read the docs on obspy taup class) using the dataWindowRange
+        parameter interval.
+        
+        Parameters
+        ----------
+        t0 : str or UTCDateTime
+        t1 : str or UTCDateTime
+        targetSamplingRate : int
+        allowedLocGainList : list
+        dataWindowRange : Range
+        phasesOrPhaseGroupList : str 
+        eventRestrictionArea : AreaRange
+        magnitudeRange : Range
+        depthRange : Range
+
+        networkStationList : list, optional
+        stationRestrictionArea : AreaRange, optional
+        distanceRange : Range, optional
+        
+        Return
+        ------
+        request
+            A request object (dict of list of tuples)
+        '''
         lines = []
 
         (phasename, phaselist) = self._resolve_phasenames(phasesOrPhaseGroupList)

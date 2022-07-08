@@ -1,4 +1,5 @@
-'''
+'''Fetchers based on the legacy SeisComp3 package for accessing legacy ArcLink servers.
+
 FetchTool Interactive, Mutli-module seismological mass downloader package.
 Copyright (C) 2015  Marcelo Bianchi <m.bianchi@iag.usp.br>
 

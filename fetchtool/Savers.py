@@ -1,4 +1,5 @@
-'''
+'''A set of Savers to be used with fetchtool
+
 FetchTool Interactive, Mutli-module seismological mass downloader package.
 Copyright (C) 2015  Marcelo Bianchi <m.bianchi@iag.usp.br>
 
@@ -29,17 +30,26 @@ import numpy as np
 
 # Defaults Time Constants
 SECOND = 1
+''' A second'''
 MINUTE = 60  * SECOND
+''' Minute constant in seconds'''
 HOUR   = 60  * MINUTE
+''' Hour constant in seconds'''
 DAY    = 24  * HOUR
+''' Day constant in seconds'''
 WEEK   = 7   * DAY
+''' Week constant in seconds'''
 MONTH  = 30  * DAY
-HEAR   = 365 * DAY
+''' Month constant in seconds'''
+YEAR   = 365 * DAY
+''' Year constant in seconds'''
 
 '''
 Base Saver
 '''
 class Saver(object):
+    '''The base superclass for Savers
+    '''
     def __init__(self, debug = False):
         self._debug = debug
         self.parameters = self.__initParameters()
@@ -384,6 +394,8 @@ class Saver(object):
 Savers
 '''
 class QSaver(Saver):
+    '''The Q-File format Saver
+    '''
     def __init__(self, debug = False, usenet_inname = False):
         Saver.__init__(self, debug)
         self.usenet_inname = usenet_inname
@@ -481,6 +493,8 @@ class QSaver(Saver):
 
 
 class SacSaver(Saver):
+    '''The Sac-file format saver
+    '''
     def __init__(self, debug = False):
         Saver.__init__(self, debug)
 
@@ -578,19 +592,29 @@ class SacSaver(Saver):
 
 
 class MSSaver(Saver):
-    '''
-    This class implements a miniSeed saver. It can
-    save mseed in three different flavors indicated
-    by the mode variable:
-     * 1 : File per key-channel (like sac) in key folder
-     * 2 : File per key-station (like a sac with 3c) in key folder
-     * 3 : File per key like Qfiles
+    '''This class implements a miniSeed saver.
+
+    Constructed filenames will be determined from the operaion mode.
+    Possible values are:
+    
+     * 1 = File per key-channel (like sac) in key folder
+     * 2 = File per key-station (like a sac with 3c) in key folder
+     * 3 = File per key like Qfiles
+    
+    Parameters
+    ----------
+    mode : int
+        The mode of operation
+    debug : bool, default False
+        Print debuging messages
     '''
     def __init__(self, mode, debug = False):
         Saver.__init__(self, debug)
+        
         self._mode = mode
+        
         if mode not in [1, 2, 3]:
-            raise Exception("Invalid mode, choose between 1,2,3 !")
+            raise Exception("Invalid mode, choose between 1,2,3")
     
     def _fix_event_headers(self, stream, request):
         pass

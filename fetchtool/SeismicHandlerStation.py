@@ -1,4 +1,5 @@
-'''
+'''A class to represent SeismicHandler station information
+
 FetchTool Interactive, Mutli-module seismological mass downloader package.
 Copyright (C) 2015  Marcelo Bianchi <m.bianchi@iag.usp.br>
 

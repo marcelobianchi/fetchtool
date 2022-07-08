@@ -1,4 +1,5 @@
-'''
+'''BaseBuilder Module for the fetchtool package.
+
 FetchTool Interactive, Mutli-module seismological mass downloader package.
 Copyright (C) 2015  Marcelo Bianchi <m.bianchi@iag.usp.br>
 
@@ -42,10 +43,16 @@ STATUS = AttribDict({
                      "temporary_error": "temporary_error",
                      "permanent_error": "permanent_error",
                      })
+''' Basic status information dictionary with conversion strings '''
 
 MINUTE = 60
+''' Minute constant in seconds'''
+
 HOUR   = 60 * MINUTE
+''' Hour constant in seconds'''
+
 DAY    = 24 * HOUR
+''' One day constant in seconds'''
 
 class Status(object):
     def __init__(self):
@@ -66,25 +73,63 @@ class Status(object):
 
 
 class BadParameter(Exception):
+    ''' Exception to indicate that a wrong parameter was supplied by the user '''
     pass
 
 
 class NextItem(Exception):
+    ''' Exception to indicate that we fail find some information and the iteration must proceed to the next item in list '''
     pass
 
 
 class Range(object):
+    '''A generic interval (start/end) representation
+    
+    Parameter
+    ---------
+    minvalue : number
+        The start value, or minimum value of the interval.
+    maxvalue : number
+        The end value, or minimum value of the interval.
+    '''
     def __init__(self, minvalue, maxvalue):
         self._min = minvalue # min([minvalue,maxvalue]) if minvalue != None and maxvalue != None else minvalue
         self._max = maxvalue # max([minvalue,maxvalue]) if minvalue != None and maxvalue != None else maxvalue
 
     def min(self):
+        '''The left value of Range
+        
+        Return
+        ------
+        number
+            The left (or minimum) value of the Range
+        '''
         return self._min
 
     def max(self):
+        '''The right value of Range
+        
+        Return
+        ------
+        number
+            The right (or maximum) value of the Range
+        '''
         return self._max
 
     def good(self, value):
+        '''Check that value is a good value. I.e. is inside the Range
+        
+        Parameters
+        ----------
+        value : number
+            A value to check
+        
+        Return
+        ------
+        boolean
+            True of False for the test
+        '''
+        
         if self._min is not None and self._max is not None:
             if value < self._min: return False
             if value > self._max: return False
@@ -98,14 +143,35 @@ class Range(object):
 
     @staticmethod
     def ALLDISTS():
+        '''All possibles distances on Earth
+        
+        Return
+        ------
+        AreaRange
+            An AreaRange representing all possible distances (0,180) degrees
+        '''
         return Range(0.0, 180.0)
     
     @staticmethod
     def ALLMAGS():
+        '''All possibles magnitudes
+        
+        Return
+        ------
+        AreaRange
+            An AreaRange representing all possible magnitudes (0,10)
+        '''
         return Range(0.0, 10.0)
 
     @staticmethod
     def ALLDEPTHS():
+        '''All possibles depths
+        
+        Return
+        ------
+        AreaRange
+            An AreaRange representing all possible depths (0,1000) in km
+        '''
         return Range(0.0, 1000.0)
 
     def __str__(self):
@@ -113,31 +179,103 @@ class Range(object):
 
 
 class AreaRange(object):
+    '''A generic region (squared) representation
+    
+    Parameter
+    ---------
+    xmin : number
+        Left (west) limit of the region.
+    xmax : number
+        Right (east) limit of the region.
+    ymin : number
+        Bottom (south) limit of the region.
+    ymax : number
+        Top (north) limit of the region.
+    '''
+    
     def __init__(self, xmin, xmax, ymin, ymax):
         self.x = Range(xmin, xmax)
+        '''Internal Range to represent the x-range of the AreaRange'''
         self.y = Range(ymin, ymax)
+        '''Internal Range to represent the y-range of the AreaRange'''
 
     def xmin(self):
+        '''The left value of AreaRange
+        
+        Return
+        ------
+        number
+            The left value of the AreaRange
+        '''
         return self.x.min()
 
     def xmax(self):
+        '''The right value of AreaRange
+        
+        Return
+        ------
+        number
+            The right value of the AreaRange
+        '''
         return self.x.max()
 
     def ymin(self):
+        '''The bottom value of AreaRange
+        
+        Return
+        ------
+        number
+            The bottom value of the AreaRange
+        '''
         return self.y.min()
 
     def ymax(self):
+        '''The top value of AreaRange
+        
+        Return
+        ------
+        number
+            The top value of the AreaRange
+        '''
         return self.y.max()
 
     def good(self, x, y):
+        '''Check that x,y point is a good point. I.e. is inside the AreaRange
+        
+        Parameters
+        ----------
+        x : number
+            The x-coordinate of the point to check
+        y : number
+            The y-coordinate of the point to check
+        
+        Return
+        ------
+        boolean
+            True of False for the test
+        '''
         return self.x.good(x) and self.y.good(y)
 
     @staticmethod
     def WORLD():
+        '''AreaRange representing the world region
+        
+        Return
+        ------
+        AreaRange
+            An AreaRange object representing the world
+        '''
         return AreaRange(-180., 180., -90., 90)
 
     @staticmethod
     def BRAZIL():
+        '''AreaRange representing the Brazil region
+        
+        Return
+        ------
+        AreaRange
+            An AreaRange object representing Brazil
+        '''
         return AreaRange(-75., -30., -35., 8.)
 
     def __str__(self):
@@ -145,6 +283,10 @@ class AreaRange(object):
 
 
 class BaseBuilder(object):
+    '''This is the Builders Super Class
+    
+    All Builders should implement the BaseBuilder class
+    '''
     def __init__(self):
         self._plotevents = False
         self.__tworker = taup.TauPyModel()
@@ -614,11 +756,37 @@ class BaseBuilder(object):
         return BaseBuilder.__x_list(evs, fields, formats, validfields, formatrule, separator, destination)
 
     @staticmethod
-    def filter_netsta(request, items, mode = "N.S"):
+    def filter_netsta(request, items, mode = "N.S", operation = "keep"):
+        '''Filter the request based on the items, mode and operation.
+        
+        This method can be used to filter IN (operation="keep") or filter OUT (operation="remove") request lines
+        from request based on its network/station values. The mode parameter indicate if items is a list of networks,
+        stations of network.station values. Items is always a list.
+        
+        Warnings
+        --------
+        Requests is filtered inplace.
+        
+        Parameters
+        ----------
+        request : request
+            A request to process. This will be modified.
+        items : list
+            A list of items to keep in the request.
+        mode : str
+            A string to indicate the mode of operation, can be N.S, N or S to indicate Network and Stations, Network or Station.
+        operation : str, default "keep"
+            A parameter to indicate if we should keep the supplied values (operation="keep", default) or remove (operation="remove") from the request.
+        
+        Return
+        ------
+        request 
+            The request
         '''
-        Filter some stations/networks from the request. Mode is N.S, N or S to filter net/sta, net or stations
-        Items is a list of codes to remove, following mode format.
-        '''
+        
+        if operation not in ["keep", "remove"]:
+            raise BadParameter("Invalid operation mode, valid values are keep or remove")
+        
         for evk in request:
             if evk == 'STATUS': continue
             ev = request[evk]
@@ -632,7 +800,8 @@ class BaseBuilder(object):
                     k = "%s" % (line[3])
                 else:
                     raise BadParameter("Mode need to be N.S, N or S")
-                if k not in items: continue
+                if operation == "keep" and k not in items: continue
+                if operation == "remove" and k in items: continue
                 lines.append(line)
             request[evk] = lines
 
@@ -646,10 +815,37 @@ class BaseBuilder(object):
 
     @staticmethod
     def filter_timewindow(request, start = None, end = None):
-        '''
-        Filter out request lines not matching with this datetime range
+        '''Filter out request lines not overlaping with this datetime range
+        
+        This method will remove request lines from the request that do not overlap the
+        indicated time interval. The time interval can be open to the left or right.
+        
+        Warnings
+        --------
+        Requests are filtered inplace.
+        
+        Parameters
+        ----------
+        request : request
+            The input request to be filtered
+        start : str or UTCDateTime, default None
+            The start of the interval to consider. None value indicates that the interval is open to the left.
+        end : str or UTCDateTime, default None
+            The end of the interval to consider. None value indicates that the interval is open to the right.
+        
+        Return
+        ------
+        request
+            The filtered request
         '''
         if start is None and end is None: raise BadParameter("Need start or end parameters")
+        
+        if start is not None:
+            start = UTCDateTime(start)
+        
+        if end is not None:
+            end = UTCDateTime(end)
+        
         for evk in request:
             if evk == 'STATUS': continue
             ev = request[evk]
@@ -670,18 +866,46 @@ class BaseBuilder(object):
 
     @staticmethod
     def filter_channels(request, allowedChannels = "Z"):
+        '''Filter channels to be requested.
+        
+        This method will filter OUT all channels that are not in the allowedChannels variable.
+        
+        Warnings
+        --------
+        Request is filtered inplace.
+        
+        Parameters
+        ----------
+        request : request
+            The input request for filtering
+        allowedChannels : str, default "Z"
+            A string with all allowed channel codes. Examples are: "Z", "12", "NE"
+        
+        Return
+        ------
+        request
+            The filtered request
         '''
-        Filter channels to be requested based on the option given.
-        '''
+        
         for evk in request:
             if evk == "STATUS" : continue
             ev = request[evk]
             lines = []
             for line in ev:
-                items = list(filter(lambda x: allowedChannels in x[1], line[4]))
+                items = list(filter(lambda x: x[1][-1] in allowedChannels, line[4]))
+                if len(items) == 0:
+                    continue
                 line = (line[0], line[1], line[2], line[3], items, line[5], line[6], line[7])
                 lines.append(line)
             request[evk] = lines
+
+        todelete = []
+        for evk in request:
+            if evk == 'STATUS': continue
+            if len(request[evk]) == 0: todelete.append(evk)
+        for evk in todelete:
+            del request[evk]
+
         return request
 
     @staticmethod
@@ -753,10 +977,32 @@ class BaseBuilder(object):
     
     @staticmethod
     def reqlen(request):
+        '''Count the total number of lines in request
+        
+        Parameters
+        ----------
+        request : request
+            The request
+        
+        Return
+        ------
+        int
+            The number of lines of request in request
+        '''
         return sum([ len(request[k]) for k in request if k != "STATUS" ])
     
     @staticmethod
     def show_request(request, compact = True):
+        '''Write a summary of the  request to the screen
+        
+        Parameters
+        ----------
+        request : request
+            A request
+        compact : bool, default True
+            Use a compact mode to save space on screen
+        '''
+        
         def fv(v):
             if isinstance(v, float): return ("%7.1f" if not compact else "%.1f") % v
             return v
@@ -870,6 +1116,17 @@ class BaseBuilder(object):
 
     @staticmethod
     def load_request(filename):
+        '''Load a request from file
+        
+        Parameters
+        ----------
+        filename : str
+            A filename to read request from
+        Return
+        ------
+        request
+            The request object loaded from filename
+        '''
         if filename is None or not os.path.isfile(filename):
             raise Exception("Cannot read file, %s" % filename)
 
@@ -884,6 +1141,18 @@ class BaseBuilder(object):
 
     @staticmethod
     def save_request(filename, request, overwrite = False):
+        '''Save a built request to file
+        
+        Parameters
+        ----------
+        filename : str
+            The filename to write to.
+        request : request
+            The request to be written.
+        overwrite : bool, default True
+            If the could should overwrite the file if it exists.
+        '''
+        
         if filename is None:
             raise Exception("Filename should not be empty")
 

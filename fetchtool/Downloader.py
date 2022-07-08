@@ -1,4 +1,5 @@
-'''
+'''Downloader orchestration Module and Fetchers for the fetchtool package.
+
 FetchTool Interactive, Mutli-module seismological mass downloader package.
 Copyright (C) 2015  Marcelo Bianchi <m.bianchi@iag.usp.br>
 
