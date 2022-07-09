@@ -598,6 +598,8 @@ class FDSNBuilder(BaseBuilder):
         phasesOrPhaseGroupList (use 'ttp' for P-waves or read the docs on obspy taup class) using the dataWindowRange
         parameter interval.
         
+        Will consider the restricted flag state of the Builder.
+        
         Parameters
         ----------
         t0 : str or UTCDateTime

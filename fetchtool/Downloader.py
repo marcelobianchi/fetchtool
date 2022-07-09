@@ -29,7 +29,27 @@ from fetchtool.Savers import Saver
 from socket import timeout
 
 class BaseFetcher(object):
-    pass
+    '''A Fetcher super class
+    '''
+    def work(self, key, items):
+        '''The main fetcher worker
+        
+        When implementing a new fetcher you are responsible to implement this.
+        
+        Parameters
+        ----------
+        key : str
+            The key of items
+        items: list
+            A lista of request lines corresponding to the request key received
+        
+        Return
+        ------
+        obspy.Stream
+            An obspy stream with the fetched data
+        
+        '''
+        raise Exception("Not implemented")
 
 class FDSNFetcher(BaseFetcher):
     '''A fetcher based on FDSN server
@@ -82,7 +102,10 @@ class FDSNFetcher(BaseFetcher):
         self._merge = merge
 
     def work(self, key, items):
-        '''This is the main method of the FDSNFetcher. This is used by the Downloaded
+        '''This is the main method of the FDSNFetcher.
+        
+        This is used by the Downloadeder. You should not call it yourself.
+        
         '''
         stream = Stream()
         
@@ -121,12 +144,25 @@ class FDSNFetcher(BaseFetcher):
         return stream
 
 class Downloader(object):
-    ''' Downloader: 
+    '''The Downloader
         
-        Should receive a folder (basedir), a flag to allow replace a tree (replacetree) a flag 
-        to indicate that it should show a resume of operations (show_resume) and finally, should
-        be given a fetcher (fetcher) of type (BaseFetcher) and a list of extracters (saverlist) of
-        type (Savers).'''
+        This is the main downloader module. It will save all the requested data into the basedir folder,
+        if requested it can overwrite already downloaded data (replacetree). One downloader work with one
+        fetcher and can use many different Savers.
+        
+        Parameters
+        ----------
+        basedir : str
+            A base folder path to save files.
+        replacetree : bool, default False
+            A flag to indicate that the folder should be replaced (overwrite files)
+        show_resume: bool, default False
+            A flag to indicate that a print-out of the request should be shown
+        fetcher : BaseFetcher instance
+            A fetcher instance.
+        saverlist: Saver list
+            A list of Saver type objects.
+        '''
     def __init__(self, basedir,
                  replacetree = False,
                  show_resume = False,
@@ -156,10 +192,6 @@ class Downloader(object):
             except OSError as e:
                 print("Failed to initialize the base folder (%s)." % (str(e)), file=sys.stderr)
         self._basedir = basedir
-
-    def isgood(self):
-        if self._basedir == None: return False
-        return True
 
     def _resume(self, key, items):
         i=0
@@ -200,24 +232,52 @@ class Downloader(object):
 
         return (removed, created)
 
+    ''' Public Methods '''
+    
+    def isgood(self):
+        '''A check method for the Downloader'''
+        
+        if self._basedir == None:
+            return False
+        
+        if os.path.isdir(self._basedir) and self._force is False:
+            return False
+        
+        return True
+
     def enableSaveRaw(self):
+        '''Request to save RAW data before QC
+        '''
         folder = os.path.join(self._basedir, "RAW")
         if not os.path.isdir(folder): os.mkdir(folder)
         self.__saveraw = True
 
-    def work(self, requests):
-
-        print("\n\nWorking on %d requests" % (len(requests) - 1), file=sys.stderr)
+    def work(self, request):
+        '''Main download method.
+        
+        This method will receive a request object, download the data and save it to the base folder
+        
+        Parameters
+        ----------
+        request : request
+            A request to work on
+        
+        Return
+        ------
+        None
+        '''
+        
+        print("\n\nWorking on %d request lines" % (len(request) - 1), file=sys.stderr)
 
         # Ensure folders exists
-        (removed, created) = self._makefolders(requests)
+        (removed, created) = self._makefolders(request)
         print(" Removed %d folders and created %d folder in %s" % (removed, created, self._basedir), file=sys.stderr)
 
         # Work on request base
-        for key in requests.keys():
+        for key in request.keys():
             if key == "STATUS": continue
 
-            request = requests[key]
+            request = request[key]
             print("\n %s has %d events selected" % (key,len(request)), file=sys.stderr)
 
             # Check resume

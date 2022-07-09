@@ -53,6 +53,7 @@ class Saver(object):
     def __init__(self, debug = False):
         self._debug = debug
         self.parameters = self.__initParameters()
+        '''Set of current SAVER parameter'''
 
     def _cleanids(self, reason, stream, ids):
         '''Remove from the stream the traces that have no evid tag
@@ -192,7 +193,7 @@ class Saver(object):
             tb = trace.slice(pt, pt + self.parameters.spike.window)
             tb.detrend('linear')
 
-            if abs(ta.max()) * self.parameters.spike.ratio > abs(tb.max()):
+            if abs((ta.max() - ta.min())/2.) * self.parameters.spike.ratio > abs((tb.max() - tb.min())/2.):
                 del trace._f_evid
 
         # Clean up bad IDS
@@ -285,30 +286,112 @@ class Saver(object):
         raise Exception("Base Class Saver -- Not implemented")
 
     def _extract(self, folder, key, request, stream):
+        '''This is the main class of a new Saver.
+        
+        When writting a new saver you are responsible to implement this
+        method. This method will receive the destination folder, the key
+        of the request corresponding to the Stream, the request element
+        and the stream with data.
+        
+        You should write it to the folder.
+        
+        Parameters:
+        
+        folder: str
+            Where you should write the data to
+        
+        key : str
+            The key of the request being saved
+        
+        request : request
+            The whole request, request[key] is the one being saved
+        
+        stream : obspy.Stream
+            The data to be saved.
+        
+        Return
+        ------
+        int
+            The number of files written
+        '''
         raise Exception("Base Class Saver -- Not implemented")
 
     def enableTimeWindowCheck(self, prephase, postphase):
+        '''Enable a time window check for the downloaded data.
+        
+        When this option is enabled the saver will not save traces that 
+        does not have at leasr prephase and postphase seconds before and
+        after the reference phase.
+        
+        Parameters
+        ----------
+        prephase: float
+            Amount of seconds before the reference phase (value is considered to be absolute)
+        postphase: float
+            Amount of seconds after the reference phase (value is considered to be absolute)
+        '''
+        
         self.parameters.tw.prephasevalue = abs(prephase)
         self.parameters.tw.postphasevalue = abs(postphase)
 
     def enablermscheck(self, window, ratio):
+        '''When enabled will check SNR (by the RMS) of data before save
+        
+        Any traces with SNR ratio < than ratio will not be saved.
+        
+        Parameters
+        ----------
+        window : float
+            The window size in seconds before and after the reference phase to check
+        ratio:float
+            The minimum ratio to save data windows
+        '''
         self.parameters.rms.enabled = True
         self.parameters.rms.w = window
         self.parameters.rms.ratio = ratio
 
     def disable3ccheck(self):
+        '''Save requests missing 3 components.
+        
+        Normaly they are discarded.
+        '''
         self.parameters.no3c = True
 
     def enablespikecheck(self, window, ratio):
+        '''Enable large amplitude check before the reference phase
+        
+        When enabled it will reject requests where any of traces has 
+        a large amplitude before the reference fase. Diferently than
+        the rms check this will use the (max-min)/2 ABS amplitude in the
+        window before and after the reference phase to discard bad data.  
+        
+        Parameters
+        ----------
+        window : float
+            A window in seconds to check for large amplitudes.
+        
+        ratio : float
+            A minimum ratio to save the data.
+        '''
+        
         self.parameters.spike.enabled = True
         self.parameters.spike.window  = window
         self.parameters.spike.ratio   = ratio
 
     def disableresample(self):
+        '''Disable resampling after it has been enabled with enableresample
+        '''
         self.parameters.resample.enabled = False
         self.parameters.resample.sps = None
 
     def enableresample(self, sps):
+        '''Enable data resample to sps before saving
+        
+        Parameters
+        ----------
+        sps : float
+            A new sampling rate value to ressample data to.
+        '''
         self.parameters.resample.enabled = True
         
         if sps < 1:
@@ -349,6 +432,10 @@ class Saver(object):
         return parameters
 
     def work(self, folder, key, request, stream):
+        '''The main working method.
+        
+        You should not call this directly. It is used by the downloader.
+        '''
         if not os.path.isdir(folder): raise Exception("Invalid folder")
 
         stream = stream.copy()
@@ -395,10 +482,18 @@ Savers
 '''
 class QSaver(Saver):
     '''The Q-File format Saver
+    
+    Parameters
+    ----------
+    debug : bool, default False
+        Indicate that it should show debug messages while working.
+    
+    usenet_inname : bool, default False
+        This indicates that the network code should be made part of the station code
     '''
     def __init__(self, debug = False, usenet_inname = False):
         Saver.__init__(self, debug)
-        self.usenet_inname = usenet_inname
+        self.__usenet_inname = usenet_inname
 
     def _extract(self, folder, key, request, stream):
         if len(stream) == 0: return 0
@@ -415,7 +510,7 @@ class QSaver(Saver):
             statinf = ShStation(os.path.join(base,"STATINF.DAT"))
             for item in request:
                 stp = item[5]
-                if self.usenet_inname:
+                if self.__usenet_inname:
                     stcode = "".join(stp.stationId.split("."))
                 else:
                     stcode = stp.stationId.split(".")[1]
@@ -461,7 +556,7 @@ class QSaver(Saver):
                 trace.stats.sh = AttribDict({})
 
             # Station code
-            if self.usenet_inname:
+            if self.__usenet_inname:
                 trace.stats.sh['STATION'] = "".join(stp.stationId.split("."))
             else:
                 trace.stats.sh['STATION'] = stp.stationId.split(".")[1]
@@ -494,6 +589,16 @@ class QSaver(Saver):
 
 class SacSaver(Saver):
     '''The Sac-file format saver
+    
+    This is the SACS file format saver. It will load all information
+    that it can inside the SAC header trace.
+    
+    It will also compute distance, gcarc, baz and az.
+    
+    Parameters
+    ----------
+    debug : bool, default False
+        Debug while working to save data
     '''
     def __init__(self, debug = False):
         Saver.__init__(self, debug)

@@ -656,6 +656,13 @@ class BaseBuilder(object):
         self._plotevents = bool(true_false)
 
     def setAllowRestricted(self, true_false):
+        '''Enable of disable the use of restricted station while building the request
+        
+        Parameters
+        ----------
+        true_false : bool
+            A flag to enable (true) disable (false) the use of restricted stations.
+        '''
         self.__include_restricted = bool(true_false)
 
     ''' Static methods have underscore '''
