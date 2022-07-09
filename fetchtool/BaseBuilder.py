@@ -295,6 +295,11 @@ class BaseBuilder(object):
     '''
     def __init__(self):
         self._plotevents = False
+        '''A global flag used by eventBased and stationBased to show or not events.'''
+        
+        self.__include_restricted = True
+        '''A global flag used by self._fill_kwargsstation to include or not restricted inventory.'''
+        
         self.__tworker = taup.TauPyModel()
 
     '''
@@ -535,7 +540,8 @@ class BaseBuilder(object):
         kwargs = {
                   "starttime": t0,
                   "endtime": t1,
-                  "level": "channel"
+                  "level": "channel",
+                  "includerestricted" : self.__include_restricted
                   }
 
         # Add rectangular coordinate restrictions
@@ -648,6 +654,9 @@ class BaseBuilder(object):
             A True or False value that will activate or disable the Show Event feature.
         '''
         self._plotevents = bool(true_false)
+
+    def setAllowRestricted(self, true_false):
+        self.__include_restricted = bool(true_false)
 
     ''' Static methods have underscore '''
 
