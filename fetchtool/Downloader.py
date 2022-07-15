@@ -252,7 +252,7 @@ class Downloader(object):
         if not os.path.isdir(folder): os.mkdir(folder)
         self.__saveraw = True
 
-    def work(self, request):
+    def work(self, requests):
         '''Main download method.
         
         This method will receive a request object, download the data and save it to the base folder
@@ -267,18 +267,18 @@ class Downloader(object):
         None
         '''
         
-        print("\n\nWorking on %d request lines" % (len(request) - 1), file=sys.stderr)
+        print("\n\nWorking on %d request lines" % (len(requests) - 1), file=sys.stderr)
 
         # Ensure folders exists
-        (removed, created) = self._makefolders(request)
+        (removed, created) = self._makefolders(requests)
         print(" Removed %d folders and created %d folder in %s" % (removed, created, self._basedir), file=sys.stderr)
 
         # Work on request base
-        for key in request.keys():
+        for key in requests.keys():
             if key == "STATUS": continue
 
-            request = request[key]
-            print("\n %s has %d events selected" % (key,len(request)), file=sys.stderr)
+            request = requests[key]
+            print("\n %s has %d lines selected" % (key, len(request)), file=sys.stderr)
 
             # Check resume
             if self._show_resume:
