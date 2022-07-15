@@ -143,6 +143,34 @@ class FDSNFetcher(BaseFetcher):
         
         return stream
 
+class RAWFetcher(BaseFetcher):
+    '''A fetcher that reads files from the RAW folder.
+    
+    This fetcher can be used to (re)load the data that was once saved in a prior
+    run that you need to re-process without downloading it again. It is also very
+    usefull for debuging.
+    
+    Parameters
+    ----------
+    basedir : str
+        The base folder where the files are, or, that has a RAW folder in it with files.
+
+    '''
+    
+    def __init__(self, basedir):
+        self._basedir = basedir
+
+    def work(self, key, items):
+        filename = os.path.join(self._basedir, "RAW", "%s.mseed" % key)
+        altfilename = os.path.join(self._basedir, "%s.mseed" % key)
+        
+        if os.path.isfile(filename):
+            return oREAD(filename)
+        elif os.path.isfile(altfilename):
+            return oREAD(altfilename)
+        
+        return Stream()
+
 class Downloader(object):
     '''The Downloader
         
@@ -252,7 +280,7 @@ class Downloader(object):
         if not os.path.isdir(folder): os.mkdir(folder)
         self.__saveraw = True
 
-    def work(self, requests):
+    def work(self, request):
         '''Main download method.
         
         This method will receive a request object, download the data and save it to the base folder
@@ -267,26 +295,26 @@ class Downloader(object):
         None
         '''
         
-        print("\n\nWorking on %d request lines" % (len(requests) - 1), file=sys.stderr)
+        print("\n\nWorking on %d request entries" % (len(request) - 1), file=sys.stderr)
 
         # Ensure folders exists
-        (removed, created) = self._makefolders(requests)
+        (removed, created) = self._makefolders(request)
         print(" Removed %d folders and created %d folder in %s" % (removed, created, self._basedir), file=sys.stderr)
 
         # Work on request base
-        for key in requests.keys():
+        for key in request.keys():
             if key == "STATUS": continue
 
-            request = requests[key]
-            print("\n %s has %d lines selected" % (key, len(request)), file=sys.stderr)
+            reqitem = request[key]
+            print("\n %s has %d lines selected" % (key, len(reqitem)), file=sys.stderr)
 
             # Check resume
             if self._show_resume:
-                self._resume(key, request)
+                self._resume(key, reqitem)
 
             # Fetch
             if self._fetcher:
-                data = self._fetcher.work(key, request)
+                data = self._fetcher.work(key, reqitem)
                 if data == None or len(data) == 0:
                     print("  No Data for Node %s" % key, file=sys.stderr)
 
@@ -296,7 +324,7 @@ class Downloader(object):
                 if data and self._savers:
                     for extracter in self._savers:
                         if extracter is None: continue
-                        result = extracter.work(self._buildfolder(key), key, request, data)
+                        result = extracter.work(self._buildfolder(key), key, reqitem, data)
                         print("  Wrote (In:%d Assoc:%d nWin:%d rms:%d spike:%d 3c:%d nHead:%d) -- %d files" % result, file=sys.stderr)
 
 if __name__ == "__main__":
