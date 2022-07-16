@@ -387,14 +387,16 @@ class Saver(object):
         self.parameters.rms.ratio = ratio
 
     def disablecompcheck(self):
-        '''Save requests even those missing all requested components.
+        '''Disabling the check of components availability.
         
         Normaly requests that does not have all components are discarded.
+        If disabled, data for stations missing requested components will be 
+        accepted to be further processed.  
         '''
         self.parameters.nocompc = True
 
     def disable3ccheck(self):
-        '''See disablecompcheck() method
+        '''See the disablecompcheck method
         '''
         warnings.warn("This is depracated; use disablecompcheck", DeprecationWarning, stacklevel = 2)
         
