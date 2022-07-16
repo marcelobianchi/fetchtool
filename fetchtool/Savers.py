@@ -706,7 +706,7 @@ class SacSaver(Saver):
             trace.stats.sac['a'] = phase.time - trace.stats.starttime
             trace.stats.sac['ka'] = phase.phase
             
-            if phase.others is not None:
+            if hasattr(phase, 'others') and phase.others is not None:
                 for which,var in [ ('S','t0'), ('Pg','t1'),  ('Pn','t2'), ('Sg','t3'),  ('Sn','t4') ]:
                     for other in phase.others:
                         if other.phase != which: continue

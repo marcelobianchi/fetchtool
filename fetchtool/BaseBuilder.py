@@ -32,6 +32,7 @@ import numpy as np
 
 import pickle
 import os
+import json
 
 STATUS = AttribDict({
                      "unset": "unset",
@@ -54,6 +55,21 @@ HOUR   = 60 * MINUTE
 DAY    = 24 * HOUR
 ''' One day constant in seconds'''
 
+
+def __jENCONDER__(obj):
+    '''An object encoder to JSON compatible formats
+    '''
+    if isinstance(obj, Status):
+        return obj.as_json()
+    
+    if isinstance(obj, UTCDateTime):
+        return obj.isoformat()
+    
+    if isinstance(obj, AttribDict):
+        return obj.__dict__
+    
+    return obj
+
 class Status(object):
     '''A not so usefull status representation of the request.
     '''
@@ -63,15 +79,15 @@ class Status(object):
         self.comment = None
         '''Any added comment to the status'''
 
-    def __iter__(self):
-        return self
+    def as_json(self):
+        return { 'level' : self.level, 'comment' : self.comment }
 
-    def __len__(self):
-        return 0
-
-    def next(self):
-        '''Used for iteration'''
-        raise StopIteration
+    @staticmethod
+    def from_json(json):
+        obj = Status()
+        obj.level = json['level']
+        obj.comment = json['comment']
+        return obj
 
     def show(self):
         '''Print a status message'''
@@ -489,16 +505,15 @@ class BaseBuilder(object):
         pickinfo = AttribDict({
                     'phase'    : phase,
                     'time'     : time,
-                    'slowness' : slowness,
-                    'others'   : None
+                    'slowness' : slowness
                     })
         
         if main is not None:
+            if not hasattr(main, 'others'):
+                main['others'] = [ ]
             main['others'].append(pickinfo)
             return main
-        
-        pickinfo['others'] = []
-        
+      
         return pickinfo
 
     def _organize_by_station(self, lines):
@@ -1124,6 +1139,8 @@ class BaseBuilder(object):
                 print(title)
 
             for k,v in it.items():
+                if k == 'others':
+                    continue
                 if compact:
                     print("%s: %s, " % (k,fv(v)), end="")
                 else:
@@ -1148,6 +1165,9 @@ class BaseBuilder(object):
                 showkvd("  Station Attributes:", line[5])
                 showkvd("  Event Attributes:", line[6])
                 showkvd("  Pick Attributes:", line[7])
+                if hasattr(line[7], 'others'):
+                    for other in line[7].others:
+                        showkvd("  Other Picks Att:", other)
                 print("")
         return
 
@@ -1245,13 +1265,16 @@ class BaseBuilder(object):
         plt.show()
 
     @staticmethod
-    def load_request(filename):
+    def load_request(filename, file_format = 'json'):
         '''Load a request from file
         
         Parameters
         ----------
         filename : str
             A filename to read request from
+        file_format : str, default 'json'
+            The file format to write out the request. Valid options are 'json' and 'pickle'
+        
         Return
         ------
         request
@@ -1260,17 +1283,52 @@ class BaseBuilder(object):
         if filename is None or not os.path.isfile(filename):
             raise Exception("Cannot read file, %s" % filename)
 
+        if file_format not in ['json', 'pickle']:
+            raise Exception('Bad file format for file output. Valid options are "json" or "pickle".')
+
+        iofile = open(filename, "r" if file_format == "json" else "rb")
+
         try:
-            iofile = open(filename, "rb")
-            request = pickle.load(iofile)
-            iofile.close()
+            if file_format == 'pickle':
+                request = pickle.load(iofile)
+                iofile.close()
+                return request
+
+            request = json.load(iofile)
+
+            #
+            # Json format support just the basic types. We need to handle:
+            # dict -> AttribDict(), str -> UTCDateTime(), dict -> Status()
+            #
+            for k in request:
+                if k == 'STATUS' :
+                    request['STATUS'] = Status.from_json(request['STATUS'])
+                    continue
+
+                for line in request[k]:
+                    # AttribDict
+                    line[5] = AttribDict(line[5])
+                    line[6] = AttribDict(line[6])
+                    line[7] = AttribDict(line[7])
+
+                    # UTCDateTime
+                    line[0] = UTCDateTime(line[0])
+                    line[1] = UTCDateTime(line[1])
+                    line[6].time = UTCDateTime(line[6].time)
+                    line[7].time = UTCDateTime(line[7].time)
+
+                    # Pick -> Other
+                    if hasattr(line[7], 'others') and isinstance(line[7].others, list):
+                        line[7].others = [ AttribDict(o) for o in line[7].others ]
+                        for o in line[7].others:
+                            o.time = UTCDateTime(o.time)
         except:
             request = None
 
         return request
 
     @staticmethod
-    def save_request(filename, request, overwrite = False):
+    def save_request(filename, request, overwrite = False, file_format = 'json'):
         '''Save a built request to file
         
         Parameters
@@ -1281,6 +1339,8 @@ class BaseBuilder(object):
             The request to be written.
         overwrite : bool, default True
             If the could should overwrite the file if it exists.
+        file_format : str, default 'json'
+            The file format to write out the request. Valid options are 'json' and 'pickle'
         '''
         
         if filename is None:
@@ -1292,10 +1352,16 @@ class BaseBuilder(object):
         if request is None:
             raise Exception("Request cannot be empty")
 
-        iofile = open(filename, "wb")
-        pickle.dump(request, iofile)
-        iofile.close()
+        if file_format not in ['json', 'pickle']:
+            raise Exception('Bad file format for file output, valid options are "json" or "pickle"')
 
+        with open(filename, "w" if file_format == 'json' else "wb") as iofile:
+            if file_format == 'json':
+                json.dump(request, iofile, default = __jENCONDER__)
+            else:
+                pickle.dump(request, iofile)
+        
+        return
 
 if __name__ == "__main__":
     if not os.path.isfile("test_request.rq"):
