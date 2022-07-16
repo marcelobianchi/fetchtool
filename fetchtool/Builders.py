@@ -377,7 +377,7 @@ class FDSNBuilder(BaseBuilder):
             except fdsn.header.FDSNException:
                 print(f"No events found for the given parameters {eid}.", file=sys.stderr)
 
-        if len(events) == 0:
+        if events is None or len(events) == 0:
             return None
         
         print(f"Total of {len(events)} event found.", file=sys.stderr)
