@@ -2,6 +2,25 @@
 
 FetchTool is a multi modular mass downloader tool for seismological data. It is aware of FDSN and ArcLink services for metadata and data download and saves data as SAC, Qfiles or MSeed today.
 
+## Installing
+
+To install it we recomend you to use pip along with a checkout of this repository since this is still in an alpha stage. It is being constant updated, to easy the constant upgrade you can install a link to your repo using 'pip install . -e', something like:
+
+```
+$ git clone https://github.com/marcelobianchi/fetchtool.git
+$ cd fetchtool/
+$ pip install . -e --user
+```
+
+> Don't forget to change pip to pip3 if needed. This code is not expected to work with python 2 anymore.
+
+Also, if you want to fetch an update, just move to were you cloned it the first time and run git pull again. Something like:
+
+```
+$ cd fetchetool/
+$ git pull
+```
+
 # Overview
 
 This is a modular package. You have 3 different types of modules to build your program. The first module is the request builder, that can build request lines combining event and station in two different ways: by station and by events. The second module is the Downloader that reads the request data from the request builder and download waveform data from server. Finally, you have the savers that are given to the downloaders. Each saver is responsible to save the files in a different format and place. You have the SAC saver, a Qfile saver and in the future, a MS saver.
