@@ -27,6 +27,7 @@ from obspy.io.sac import SACTrace
 from obspy.geodetics import gps2dist_azimuth, kilometers2degrees
 import os, sys
 import numpy as np 
+import warnings
 
 # Defaults Time Constants
 SECOND = 1
@@ -130,9 +131,32 @@ class Saver(object):
         else:
             return [ gooditem ]
 
-    def _ensure_tree_components(self, stream, request):
+    def _reqmode(self, request, Net, Sta):
+        '''List the channels orientation that are listed in request for network and station.
+        
+        Parameters
+        ----------
+        request : tuple
+            A request tuple
+        Net : str
+            The network code string
+        Sta : str
+            The station code string
+        
+        Return
+        ------
+        str
+            A string with the orientations listed in request for net and sta.
+        '''
+        for (_, _, N, S, Cs, _, _, _) in request:
+            if N == Net and S == Sta:
+                return "".join([ cha[-1] for (loc, cha, _, _) in Cs ])
+        return ""
+
+    def _ensure_all_components(self, stream, request):
         ids = {}
-        if self.parameters.no3c: return
+        req_ids = {}
+        if self.parameters.nocompc: return
 
         # Collect number of channels per ids
         i = 0
@@ -142,6 +166,7 @@ class Saver(object):
             except KeyError:
                 evid= []
                 ids[trace._f_evid] = evid
+                req_ids[trace._f_evid] = self._reqmode(request, trace.stats.network, trace.stats.station)
             # BUG DEVERIA INCLUIR A LOCATION
             evid.append((trace.stats.channel, i, trace.stats.npts))
             i += 1
@@ -157,8 +182,19 @@ class Saver(object):
             ns = self._makechoice(stream, ns)
             es = self._makechoice(stream, es)
 
-            if len(zs) != 1 or len(ns) != 1 or len(es) != 1:
+            if "Z" in req_ids[evid] and len(zs) != 1:
                 ids_to_remove.append(evid)
+                continue
+
+            if "N" in req_ids[evid] or "1" in req_ids[evid] and len(ns) !=1:
+                ids_to_remove.append(evid)
+                continue
+
+            if "E" in req_ids[evid] or "2" in req_ids[evid] and len(es) != 1:
+                ids_to_remove.append(evid)
+                continue
+
+        ids_to_remove = list(set(ids_to_remove))
 
         # Clean-up
         self._cleanids("3C-", stream, ids_to_remove)
@@ -350,12 +386,19 @@ class Saver(object):
         self.parameters.rms.w = window
         self.parameters.rms.ratio = ratio
 
-    def disable3ccheck(self):
-        '''Save requests missing 3 components.
+    def disablecompcheck(self):
+        '''Save requests even those missing all requested components.
         
-        Normaly they are discarded.
+        Normaly requests that does not have all components are discarded.
         '''
-        self.parameters.no3c = True
+        self.parameters.nocompc = True
+
+    def disable3ccheck(self):
+        '''See disablecompcheck() method
+        '''
+        warnings.warn("This is depracated; use disablecompcheck", DeprecationWarning, stacklevel = 2)
+        
+        self.disablecompcheck()
 
     def enablespikecheck(self, window, ratio):
         '''Enable large amplitude check before the reference phase
@@ -416,7 +459,7 @@ class Saver(object):
         parameters.rms.w       = None
 
         # 3c check
-        parameters.no3c = False
+        parameters.nocompc = False
 
         # Spike
         parameters.spike = AttribDict({})
@@ -458,8 +501,8 @@ class Saver(object):
         n_spike = len(stream)
         
         ## THIS IS THE LAST
-        # Ensure that every event has 3 components only !
-        self._ensure_tree_components(stream, request)
+        # Ensure that every event has all the requested components !
+        self._ensure_all_components(stream, request)
         n_tree = len(stream)
 
         # Fill the headers available for SAC file format
