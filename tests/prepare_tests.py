@@ -20,8 +20,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from obspy import UTCDateTime
 
-from Builders import FDSNBuilder
-from BaseBuilder import Range, AreaRange
+from fetchtool.Builders import FDSNBuilder
+from fetchtool.BaseBuilder import Range, AreaRange
 
 if __name__ == "__main__":
     
