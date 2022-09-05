@@ -186,11 +186,11 @@ class Saver(object):
                 ids_to_remove.append(evid)
                 continue
 
-            if "N" in req_ids[evid] or "1" in req_ids[evid] and len(ns) !=1:
+            if ("N" in req_ids[evid] or "1" in req_ids[evid]) and len(ns) !=1:
                 ids_to_remove.append(evid)
                 continue
 
-            if "E" in req_ids[evid] or "2" in req_ids[evid] and len(es) != 1:
+            if ("E" in req_ids[evid] or "2" in req_ids[evid]) and len(es) != 1:
                 ids_to_remove.append(evid)
                 continue
 
