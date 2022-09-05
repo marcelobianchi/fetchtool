@@ -162,7 +162,7 @@ class FDSNBuilder(BaseBuilder):
                 raise BadParameter("Invalid station_serverorurl object, expected String address of fdsnClient Class")
 
     def __str__(self):
-        return f'FDSNBuilder w/ events = {self.e_fdsn_client.base_url} and data {self.s_fdsn_client.base_url}'
+        return 'FDSNBuilder w/ events = {} and data {}'.format(self.e_fdsn_client.base_url, self.s_fdsn_client.base_url)
 
     '''
     FDSN specific Methods
@@ -257,13 +257,13 @@ class FDSNBuilder(BaseBuilder):
             S = P.waveform_id.station_code
             L = P.waveform_id.location_code if P.waveform_id.location_code is not None else ""
             C = P.waveform_id.channel_code[:2]
-            NS = f'{N}.{S}'
+            NS = '{}.{}'.format(N,S)
             if NS not in sts:
                 sts[NS] = {}
                 bulk.append((N,S,L,C + "*", O.time - 3600, O.time + 7200))
             
             if A.phase in sts[NS]:
-                raise Exception(f"Duplicate {A.phase} pick for station {NS}")
+                raise Exception("Duplicate {} pick for station {}".format(A.phase, NS))
             
             sts[NS][A.phase] = (N, S, L, C, A.distance, A.azimuth, A.phase, P.time)
         
@@ -375,12 +375,12 @@ class FDSNBuilder(BaseBuilder):
                 
                 events.extend(event)
             except fdsn.header.FDSNException:
-                print(f"No events found for the given parameters {eid}.", file=sys.stderr)
+                print("No events found for the given parameters {}.".format(eid), file=sys.stderr)
 
         if events is None or len(events) == 0:
             return None
         
-        print(f"Total of {len(events)} event found.", file=sys.stderr)
+        print("Total of {} event found.".format(len(events)), file=sys.stderr)
         if self._plotevents:
             events.plot()
 
@@ -412,7 +412,7 @@ class FDSNBuilder(BaseBuilder):
                     try:
                         self._build_predefined(lines,
                                    network, station, origin, magnitude,
-                                   sts[f'{network.code}.{station.code}'], 
+                                   sts['{}.{}'.format(network.code, station.code)], 
                                    dataWindowRange)
                         print("  ++ Station %2s.%-5s was added to request." % (network.code, station.code), file=sys.stderr)
                         used.append("%s.%s" % (network.code, station.code))

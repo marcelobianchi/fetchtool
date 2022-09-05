@@ -299,12 +299,12 @@ class Saver(object):
             chain = self._decimate_resolver(trace.stats.sampling_rate, self.parameters.resample.sps)
             
             if self._debug:
-                print(f'Decimation from {trace.stats.sampling_rate} to {self.parameters.resample.sps} using {chain if chain is not None else "INTERPOLATION"}', file = sys.stderr)
-            
+                print('Decimation from {} to {} using {}'.format(trace.stats.sampling_rate, self.parameters.resample.sps, (chain if chain is not None else "INTERPOLATION")), file = sys.stderr)
+
             if chain is None:
                 if trace.stats.sampling_rate >= self.parameters.resample.sps:
                     maxfreq =  (self.parameters.resample.sps / 2.) * 0.95
-                    print(f'Filtering prior to interpolation f < {maxfreq} to match sps = {self.parameters.resample.sps}', file = sys.stderr)
+                    print('Filtering prior to interpolation f < {} to match sps = {}'.format(maxfreq, self.parameters.resample.sps), file = sys.stderr)
                     trace.filter('lowpass_cheby_2', freq = maxfreq)
                 
                 trace.interpolate(sampling_rate = self.parameters.resample.sps)
@@ -440,11 +440,11 @@ class Saver(object):
         self.parameters.resample.enabled = True
         
         if sps < 1:
-            print(f'SPS value = {sps} < 1, assuming dt was given!', file = sys.stderr)
+            print('SPS value = {} < 1, assuming dt was given!'.format(sps), file = sys.stderr)
             sps = int(1/sps)
         
         self.parameters.resample.sps = sps
-        if self._debug: print(f'Enabling decimate/interpolate using an SPS = {sps}.', file=sys.stderr)
+        if self._debug: print('Enabling decimate/interpolate using an SPS = {}.'.format(sps), file=sys.stderr)
     
     def __initParameters(self):
         parameters = AttribDict({})

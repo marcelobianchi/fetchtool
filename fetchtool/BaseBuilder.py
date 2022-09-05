@@ -181,7 +181,7 @@ class Range(object):
         return Range(0.0, 1000.0)
 
     def __str__(self):
-        return f"Range from: {self.min()} to: {self.max()}"
+        return "Range from: {} to: {}".format(self.min(), self.max())
 
 
 class AreaRange(object):
@@ -285,7 +285,7 @@ class AreaRange(object):
         return AreaRange(-75., -30., -35., 8.)
 
     def __str__(self):
-        return f'AreaRange from {self.xmin()} to {self.xmax()} and {self.ymin()} to {self.ymax()}'
+        return 'AreaRange from {} to {} and {} to {}'.format(self.xmin(), self.xmax(), self.ymin(), self.ymax())
 
 
 class BaseBuilder(object):
