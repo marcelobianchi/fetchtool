@@ -21,7 +21,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from __future__ import division, print_function
 
-from fetchtool.BaseBuilder import BaseBuilder, NextItem, BadParameter
+from fetchtool.BaseBuilder import BaseBuilder, NextItem, BadParameter, Range
 
 import sys,socket,os
 
@@ -324,6 +324,65 @@ class FDSNBuilder(BaseBuilder):
     '''
     Request Builder Methods
     '''
+    def continousData(self, t0, t1, targetSamplingRate, allowedLocGainList, networkStationList, stationRestrictionArea, chunk_size = 86400):
+        (t0, t1, targetSamplingRate, allowedLocGainList, _, _,
+         networkStationList, stationRestrictionArea, _, _, _, _) = self._check_param(t0, t1, targetSamplingRate,
+                                        allowedLocGainList, Range(0,1), [],
+                                        networkStationList, stationRestrictionArea,
+                                        None, None, None, None)
+        
+        # Chunk is in integer seconds
+        chunk_size = int(chunk_size)
+        
+        # Start Build the parameters to pass on to the Client
+        kwargsstation = self._fill_kwargsstation(t0,
+                                                t1,
+                                                stationRestrictionArea,
+                                                None, None, None)
+        # Check if network/station code is a string -> list
+        if isinstance(networkStationList, str):
+            networkStationList = [ networkStationList ]
+
+        ## Start the Loop
+        # On the given station patterns
+        for code in networkStationList:
+            (net, sta) = code.split(".")
+            kwargsstation['net'] = net
+            kwargsstation['sta'] = sta
+
+            try:
+                inventory = self.s_fdsn_client.get_stations(**kwargsstation)
+            except:
+                inventory = None
+
+            if inventory is None or len(inventory.networks) == 0:
+                print("No stations for pattern: %s.%s" % (net, sta), file=sys.stderr)
+                continue
+            
+            lines = []
+            
+            # On networks found
+            print("Stations for pattern: %s.%s" % (net,sta), file=sys.stderr)
+            for network in inventory.networks:
+                # On Stations found
+                for station in network.stations:
+                    
+                    if station.end_date and station.end_date < t0:
+                        print("\nSkipping station out of date range %.%" % (network.code, station.code))
+                        continue
+                    
+                    first = max(min(station.start_date, t0), t0)
+                    last  = min(max(station.end_date, t1), t1) if station.end_date is not None else t1
+                    
+                    while first < last:
+                        tmp = min((first+chunk_size), last)
+                        self._build_raw_lines(lines, first, tmp, network, station, targetSamplingRate, allowedLocGainList)
+                        first += chunk_size
+                    
+                    print("\nWorking on station %s.%s from %s to %s" % (network.code, station.code, first, last), file=sys.stderr)
+                    
+        return self._organize_by_station(lines)
+
     def eventidBased(self, eventid_or_list_of, dataWindowRange):
         '''Use a specific eventid or a list of eventids to build a request
         

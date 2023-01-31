@@ -360,6 +360,24 @@ class BaseBuilder(object):
                       PI)
                      )
 
+    def _build_raw_lines(self, lines, ta, tb, network, station, targetSamplingRate, allowedGainCodes):
+        # This method is overriden in each implementation
+        (z,n,e) = self._getChannelList(station, ta, targetSamplingRate, allowedGainCodes)
+
+        SI = self.__build_station_dictionary(network.code, station.code, station.latitude, station.longitude, station.elevation)
+
+        lines.append((ta,
+                      tb,
+                      network.code,
+                      station.code,
+                      [z,n,e],
+                      SI,
+                      None,
+                      None)
+                     )
+
+        return
+
     def _build(self, lines, network, station, origin, magnitude, phaselist, phasename, targetSamplingRate, allowedGainCodes, timeRange):
         delta = geodetics.locations2degrees(station.latitude,
                                        station.longitude,
@@ -747,6 +765,9 @@ class BaseBuilder(object):
             if key == "STATUS": continue
             for line in request[key]:
                 (_, _, _, _, _, SI, EI, _) = line
+                if EI is None:
+                    print("Request is for continous data - no event information is available", file = sys.stderr)
+                    return []
                 if EI.eventId not in evs:
                     d = AttribDict()
                     d.eventId    = EI.eventId
@@ -852,6 +873,9 @@ class BaseBuilder(object):
             if key == "STATUS": continue
             for line in request[key]:
                 (_, _, _, _, _, _, EI, _) = line
+                if EI is None:
+                    print("Request is for continous data - no event information is available", file = sys.stderr)
+                    return []
                 if EI.eventId not in evs:
                     evs[EI.eventId] = EI
 
@@ -1123,11 +1147,17 @@ class BaseBuilder(object):
             else:
                 print(title)
 
-            for k,v in it.items():
+            if it is not None:
+                for k,v in it.items():
+                    if compact:
+                        print("%s: %s, " % (k,fv(v)), end="")
+                    else:
+                        print("   %-10s: %s" % (k,fv(v)))
+            else:
                 if compact:
-                    print("%s: %s, " % (k,fv(v)), end="")
+                    print(" - n/a - ", end = "")
                 else:
-                    print("   %-10s: %s" % (k,fv(v)))
+                    print(" - n/a - ")
 
             if compact: print("")
 
@@ -1202,23 +1232,32 @@ class BaseBuilder(object):
             for item in request[k]:
                 st = item[5]
                 ev = item[6]
-                eid = str(ev['eventId'])
+                
+                eid = str(ev['eventId']) if ev is not None  else None
                 sid = str(st['stationId'])
+
                 if showonly is not None and ((eid != showonly) and (sid != showonly)): continue
-                elon = float(ev['longitude'])
-                elat = float(ev['latitude'])
+                
                 slon = float(st['longitude'])
                 slat = float(st['latitude'])
-                ex, ey = elon, elat #m(elon, elat)
                 sx, sy = slon, slat #m(slon, slat)
-                if eid not in evn:
-                    evn.append(eid)
-                    evs.append((ex,ey))
+
+                if ev is not None:
+                    elon = float(ev['longitude'])
+                    elat = float(ev['latitude'])
+                    ex, ey = elon, elat #m(elon, elat)
+                    
+                    if eid not in evn:
+                        evn.append(eid)
+                        evs.append((ex,ey))
+                    
                 if sid not in stn:
                     stn.append(sid)
                     sts.append((sx,sy))
-                if add_lines:
+
+                if add_lines and ev is not None:
                     ax.plot([ex, sx], [ey, sy], linewidth=1, color='k', transform=data_trans)
+
         
         for ex,ey in evs:
             ax.plot(ex, ey, 'b*', markersize = 16, color = 'g', transform = data_trans)

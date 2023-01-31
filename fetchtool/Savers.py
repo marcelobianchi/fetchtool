@@ -525,6 +525,29 @@ class Saver(object):
 '''
 Savers
 '''
+class ContSaver(Saver):
+    '''Continous data saver
+    '''
+    def __init__(self, debug = False, usenet_inname = False):
+        pass
+
+    ''' Extra to be implemented'''
+    def _associate(self, stream, request):
+        pass
+
+    def _ensure_all_components(self, stream, request)
+        pass
+
+    ''' Basic '''
+    def _extract(self, folder, key, request, stream):
+        pass
+
+    def _fix_event_headers(self, stream, request):
+        pass
+
+    def _fix_station_headers(self, stream, request):
+        pass
+
 class QSaver(Saver):
     '''The Q-File format Saver
     
