@@ -137,10 +137,10 @@ class FDSNBuilder(BaseBuilder):
         d = False
 
         self.e_fdsn_client = None
-        '''This is the saved instance of the FDSN station client'''
+        '''This is the saved instance of the FDSN event client'''
         
         self.s_fdsn_client = None
-        '''This is the saved instance of the FDSN event client'''
+        '''This is the saved instance of the FDSN station client'''
 
         if isinstance(fdsn_event_url, str):
             self.e_fdsn_client = fdsn.Client(fdsn_event_url, debug = d)
@@ -324,7 +324,29 @@ class FDSNBuilder(BaseBuilder):
     '''
     Request Builder Methods
     '''
-    def continousData(self, t0, t1, targetSamplingRate, allowedLocGainList, networkStationList, stationRestrictionArea, chunk_size = 86400):
+    def continousData(self, t0, t1, targetSamplingRate, allowedLocGainList,
+                      networkStationList, stationRestrictionArea,
+                      excludeEventList = None,
+                      chunk_size = 86400, align = 'events'):
+        '''
+        Generate a typical ANT request of fixed chunk_size timewindows in seconds
+        for a certain interval (t0,t1) and station/network
+        
+        Parameters
+        ----------
+        t0 : str or UTCDateTime
+        t1 : str or UTCDateTime
+        targetSamplingRate : int
+        allowedLocGainList : list
+        stationRestrictionArea : AreaRange
+        excludeEventList : list of tuples of Magnitude and Distance Ranges
+        chunk_size : int, optional
+        
+        Return
+        ------
+        request
+            A request object (dict of list of tuples)
+        '''
         (t0, t1, targetSamplingRate, allowedLocGainList, _, _,
          networkStationList, stationRestrictionArea, _, _, _, _) = self._check_param(t0, t1, targetSamplingRate,
                                         allowedLocGainList, Range(0,1), [],
@@ -339,9 +361,31 @@ class FDSNBuilder(BaseBuilder):
                                                 t1,
                                                 stationRestrictionArea,
                                                 None, None, None)
+        
         # Check if network/station code is a string -> list
         if isinstance(networkStationList, str):
             networkStationList = [ networkStationList ]
+
+        # Check excludeEventList
+        if excludeEventList is not None:
+            print(f'Checking events exclude parameters ...')
+            if not isinstance(excludeEventList, list):
+                raise BadParameter("excludeEventList is given and is not a list")
+
+            if len(excludeEventList) == 0:
+                raise BadParameter("excludeEventList is given as empty list")
+            
+            for (i,j) in enumerate(excludeEventList):
+                if not isinstance(j, tuple):
+                    raise BadParameter(f"iten {i} on excludeEventList is not a tuple")
+                
+                (mr,dr) = j
+                
+                if not isinstance(mr, Range):
+                    raise BadParameter(f"Tuple iten {i} on excludeEventList is not a magnitude Range item")
+                
+                if not isinstance(dr, Range):
+                    raise BadParameter(f"Tuple iten {i} on excludeEventList is not a distance Range item")
 
         ## Start the Loop
         # On the given station patterns
@@ -374,14 +418,115 @@ class FDSNBuilder(BaseBuilder):
                     first = max(min(station.start_date, t0), t0)
                     last  = min(max(station.end_date, t1), t1) if station.end_date is not None else t1
                     
-                    while first < last:
-                        tmp = min((first+chunk_size), last)
-                        self._build_raw_lines(lines, first, tmp, network, station, targetSamplingRate, allowedLocGainList)
-                        first += chunk_size
+                    events_window = self._collect_event_windows(excludeEventList, t0, t1, station.latitude, station.longitude)
                     
+                    while first < last:
+                        tmp = min((first + chunk_size), last)
+                        
+                        if events_window is not None:
+                            (first, tmp) = self._trim_window(events_window, first, tmp, chunk_size)
+                        
+                        self._build_raw_lines(lines, first, tmp, network, station, targetSamplingRate, allowedLocGainList)
+                        
+                        first += chunk_size
+                        
                     print("\nWorking on station %s.%s from %s to %s" % (network.code, station.code, first, last), file=sys.stderr)
                     
         return self._organize_by_station(lines)
+
+    def _trim_window(self, evw, t0, t1, chunk_size):
+        while len(evw) > 0 and evw[0][1] < t0:
+            evw.pop(0)
+
+        if len(evw) == 0:
+            return (t0,t1)
+        
+        (ta,tb) = evw[0]
+        
+        if t1 < ta:
+            return (t0,t1)
+        
+        if t0 < tb:
+            return (tb, tb+chunk_size)
+        
+        raise Exception("Wow - should never happen")
+
+    def _collect_event_windows(self, excludeEventList, t0, t1, lat, lon):
+        TOP_VEL = 4.5
+        BOTTOM_VEL = 2.5
+        
+        CUT_MARGIN = 60.
+        
+        if excludeEventList is None:
+            return None
+        
+        events_window = []
+        final_events_window = []
+        
+        for (mr, dr) in excludeEventList:
+            kwargsevent = {
+                'starttime'    : t0, 
+                'endtime'      : t1,
+                'latitude'     : lat,
+                'longitude'    : lon,
+                'minradius'    : dr.min(),
+                'maxradius'    : dr.max(),
+                'minmagnitude' : mr.min(),
+                'maxmagnitude' : mr.max()
+            }
+            
+            try:
+                events = self.e_fdsn_client.get_events(**kwargsevent)
+                print(f'Found {len(events)} with mags ({mr.min()}/{mr.max()}) in ({dr.min()}/{dr.max()}) that will be exclued from request.')
+            except:
+                print(f'No events found were found')
+                continue
+            
+            for event in events:
+                (origin,_) = self._getOrigin(event)
+                delta = geodetics.locations2degrees(lat, lon,
+                                                    origin.latitude, origin.longitude)
+                
+                try:
+                    (ta, slowness) = self._find_arrivalTime(origin.time, delta,
+                                                             origin.depth, [ "ttp" ])
+                    ta = ta - CUT_MARGIN
+                except:
+                    print(f'Using TOP_VEL for definning start cut')
+                    ta  = origin.time + (delta * 111.2) / TOP_VEL
+                
+                tb = origin.time + (delta * 111.2) / BOTTOM_VEL
+
+                # Here we round for some sanity!
+                ta -= 60.
+                tb += 60.
+                ta = UTCDateTime(ta.strftime("%Y-%m-%dT%H:%M:00Z"))
+                tb = UTCDateTime(tb.strftime("%Y-%m-%dT%H:%M:00Z"))
+                
+                events_window.append((ta,tb))
+            
+            #
+            # Do the windows merge (!!!)
+            #
+            if len(events_window) == 0:
+                return None
+            
+            # Sort
+            events_window = sorted(events_window, key = lambda x: x[0])
+            
+            # Merge
+            (a,b) = events_window[0]
+            final_events_window.append((a,b))
+            for (a,b) in events_window[1:]:
+                if a > final_events_window[-1][1]:
+                    final_events_window.append((a,b))
+                    continue
+                if b < final_events_window[-1][1]:
+                    continue
+                (c,d) = final_events_window.pop()
+                final_events_window.append((c,b))
+            
+        return final_events_window
 
     def eventidBased(self, eventid_or_list_of, dataWindowRange):
         '''Use a specific eventid or a list of eventids to build a request

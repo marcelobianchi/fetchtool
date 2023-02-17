@@ -384,7 +384,7 @@ class BaseBuilder(object):
                                        origin.latitude,
                                        origin.longitude)
 
-        (ta, slowness) = self.__find_arrivalTime(origin.time, delta, origin.depth, phaselist)
+        (ta, slowness) = self._find_arrivalTime(origin.time, delta, origin.depth, phaselist)
 
         # This method is overriden in each implementation
         (z,n,e) = self._getChannelList(station, ta, targetSamplingRate, allowedGainCodes)
@@ -447,7 +447,7 @@ class BaseBuilder(object):
 
         return (plist[0], plist)
 
-    def __find_arrivalTime(self, t0, delta, depth, phase):
+    def _find_arrivalTime(self, t0, delta, depth, phase):
         '''
             delta is in degrees
             depth is in meters
