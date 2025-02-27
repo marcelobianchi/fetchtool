@@ -439,7 +439,7 @@ class BaseBuilder(object):
             depth is in meters
         '''
         if 'Ot' not in phase:
-            arrivals = self.__tworker.get_travel_times(depth / 1000.0, delta, phase_list=phase )
+            arrivals = self.__tworker.get_travel_times(depth / 1000.0 if depth > 0 else 0.0, delta, phase_list=phase )
         else: # Handle the Ot flag to use Event Origin Time
             arrivals = [ AttribDict({
                 'time' : 0.0,
