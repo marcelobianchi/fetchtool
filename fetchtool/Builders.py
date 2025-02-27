@@ -324,7 +324,7 @@ class FDSNBuilder(BaseBuilder):
     '''
     Request Builder Methods
     '''
-    def eventidBased(self, eventid_or_list_of, dataWindowRange):
+    def eventidBased(self, eventid_or_list_of, dataWindowRange, stationRestrictionArea = None, stationDistanceRange = None):
         '''Use a specific eventid or a list of eventids to build a request
         
         This method will obtain from the event FDSN server the information for the given event ids 
@@ -424,6 +424,43 @@ class FDSNBuilder(BaseBuilder):
             for ns in sts:
                 if ns not in used:
                     print("  -- Station %-8s was not found the FDSN, skipping." % ns, file=sys.stderr)
+
+            if stationRestrictionArea is not None or stationDistanceRange is not None:
+                (phasename, phaselist) = self._resolve_phasenames("pgroup") # Those are hard coded for now!
+                targetSamplingRate = 100.0
+                allowedLocGainList = [ "H" ]
+
+                kwargsstation = self._fill_kwargsstation((origin.time - 86400),
+                                                          (origin.time + 86400),
+                                                          stationRestrictionArea,
+                                                          origin.latitude,
+                                                          origin.longitude,
+                                                          stationDistanceRange)
+
+                try:
+                    inventory = self.s_fdsn_client.get_stations(**kwargsstation)
+                except fdsn.header.FDSNException as e:
+                    inventory = None
+
+                if inventory is None or len(inventory.networks) == 0:
+                    print("\n No extra stations found.", file=sys.stderr)
+                    continue
+
+                for network in inventory.networks:
+                    for station in network.stations:
+                        if "".format(network.code, station.code) in sts.keys():
+                            print(" ^ Station {}.{} already in request".format(network.code, station.code), file = sys.stderr)
+                            continue
+                        try:
+                            print("  Working on station %s.%s " % (network.code, station.code), end="", file=sys.stderr)
+                            self._build(lines,
+                                       network, station, origin, magnitude,
+                                       phaselist, phasename,
+                                       targetSamplingRate, allowedLocGainList, dataWindowRange)
+                            print("OK!", file=sys.stderr)
+                        except NextItem as e:
+                            print(" -- Skipping: %s" % str(e), file=sys.stderr)
+
 
         request = self._organize_by_event(lines)
 

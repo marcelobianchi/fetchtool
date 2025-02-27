@@ -54,6 +54,10 @@ HOUR   = 60 * MINUTE
 DAY    = 24 * HOUR
 ''' One day constant in seconds'''
 
+USP_DATA          = 'http://seisrequest.iag.usp.br/'
+USP_EVENTS        = 'http://www.moho.iag.usp.br/'
+USP_DATA_INTERNAL = 'http://seisarc.sismo.iag.usp.br/'
+
 class Status(object):
     '''A not so usefull status representation of the request.
     '''
@@ -348,7 +352,7 @@ class BaseBuilder(object):
         for k in [ 'P', 'Pn', 'pP', 'Pg', 'S', 'Sg', 'Sn' ]:
             if k not in NS: continue
             N,S,L,C,distance,azimuth,phasename,t = NS[k]
-            PI = self.__build_pick_dictionary(phasename, t, 0.0, PI)
+            PI = self.__build_pick_dictionary(phasename + "+m", t, 0.0, PI)
 
         lines.append((ta + dataWindowRange.min(),
                       tb + dataWindowRange.max(),
